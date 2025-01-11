@@ -217,16 +217,22 @@ func installToFilesystem(image string, disk string) error {
 
 // getPartitionNames возвращает имена разделов на диске
 func getPartitionNames(disk string) ([]string, error) {
-	cmd := exec.Command("lsblk", "-ln", "-o", "NAME", disk)
+	cmd := exec.Command("lsblk", "-ln", "-o", "NAME,TYPE", disk)
 	output, err := cmd.Output()
 	if err != nil {
 		return nil, fmt.Errorf("ошибка выполнения lsblk: %v", err)
 	}
-	lines := strings.Fields(string(output))
-	for i := range lines {
-		lines[i] = "/dev/" + lines[i]
+
+	lines := strings.Split(strings.TrimSpace(string(output)), "\n")
+	var partitions []string
+	for _, line := range lines {
+		fields := strings.Fields(line)
+		if len(fields) == 2 && fields[1] == "part" { // Проверяем, что тип устройства "part"
+			partitions = append(partitions, "/dev/"+fields[0])
+		}
 	}
-	return lines, nil
+
+	return partitions, nil
 }
 
 // mountDisk монтирует указанный раздел в точку монтирования
