@@ -131,8 +131,9 @@ func prepareDisk(disk string, rootFileSystem string) error {
 		{"wipefs", "--all", disk},
 		{"parted", "-s", disk, "mklabel", "gpt"},
 		{"parted", "-s", disk, "mkpart", "primary", "fat32", "1MiB", "601MiB"},
-		{"parted", "-s", disk, "set", "1", "boot", "on"},
+		{"parted", "-s", disk, "set", "1", "boot", "on"}, // Установка флага boot для первого раздела
 		{"parted", "-s", disk, "mkpart", "primary", "ext4", "601MiB", "1601MiB"},
+		{"parted", "-s", disk, "set", "2", "legacy_boot", "on"}, // Установка legacy_boot для второго раздела
 		{"parted", "-s", disk, "mkpart", "primary", "ext4", "1601MiB", "100%"},
 	}
 
