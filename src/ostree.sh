@@ -1,6 +1,7 @@
 #!/bin/bash
 set -e
 
+
 echo "Running ostree.sh"
 
 # Проверка `ostree refs`
