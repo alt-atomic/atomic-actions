@@ -189,49 +189,48 @@ func installToFilesystem(image string, disk string) error {
 		return fmt.Errorf("ошибка получения разделов: %v", err)
 	}
 
-	if len(partitions) < 3 {
+	if len(partitions) < 4 {
 		return fmt.Errorf("недостаточно разделов на диске")
 	}
 
-	rootPartition := partitions[2]
+	rootPartition := partitions[3]
 	if err := mountDisk(rootPartition, mountPoint); err != nil {
 		return fmt.Errorf("ошибка монтирования root раздела: %v", err)
 	}
 	defer unmountDisk(mountPoint)
 
-	bootPartition := partitions[1]
+	bootPartition := partitions[2]
 	if err := mountDisk(bootPartition, mountPointBoot); err != nil {
 		return fmt.Errorf("ошибка монтирования boot раздела: %v", err)
 	}
 	defer unmountDisk(mountPointBoot)
 
-	efiUUID := getUUID(partitions[0])
+	efiUUID := getUUID(partitions[1])
 	if efiUUID == "" {
-		return fmt.Errorf("не удалось получить UUID для EFI раздела %s", partitions[0])
+		return fmt.Errorf("не удалось получить UUID для EFI раздела %s", partitions[1])
 	}
 
-	bootUUID := getUUID(partitions[1])
+	bootUUID := getUUID(partitions[2])
 	if bootUUID == "" {
-		return fmt.Errorf("не удалось получить UUID для boot раздела %s", partitions[1])
+		return fmt.Errorf("не удалось получить UUID для boot раздела %s", partitions[2])
 	}
 
-	rootUUID := getUUID(partitions[2])
+	rootUUID := getUUID(partitions[3])
 	if rootUUID == "" {
-		return fmt.Errorf("не удалось получить UUID для root раздела %s", partitions[2])
+		return fmt.Errorf("не удалось получить UUID для root раздела %s", partitions[3])
 	}
 
 	currentDir, err := os.Getwd()
 	if err != nil {
 		log.Fatalf("Ошибка получения текущего рабочего каталога: %v", err)
 	}
-
 	//fmt.Printf(fmt.Sprintf(
 	//	"/output/src/ostree.sh && bootc install to-filesystem --skip-fetch-check --generic-image --disable-selinux "+
 	//		"--root-mount-spec=UUID=%s --boot-mount-spec=UUID=%s",
 	//	rootUUID, bootUUID,
 	//))
 	//return nil
-	// Подготовка команды для запуска podman
+
 	cmd := exec.Command("sudo", "podman", "run", "--rm", "--privileged", "--pid=host",
 		"--security-opt", "label=type:unconfined_t",
 		"-v", "/var/lib/containers:/var/lib/containers",
