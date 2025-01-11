@@ -213,13 +213,25 @@ func installToFilesystem(image string, disk string) error {
 		return fmt.Errorf("не удалось получить UUID для root раздела %s", partitions[2])
 	}
 
+	currentDir, err := os.Getwd()
+	if err != nil {
+		log.Fatalf("Ошибка получения текущего рабочего каталога: %v", err)
+	}
+
 	fmt.Printf(rootUUID)
-	cmd := exec.Command("bootc", "install", "to-filesystem",
-		"--skip-fetch-check", "--generic-image", "--disable-selinux",
-		fmt.Sprintf("--root-mount-spec=UUID=%s", getUUID(partitions[2])),
-		fmt.Sprintf("--boot-mount-spec=UUID=%s", getUUID(partitions[1])),
-		fmt.Sprintf("--source-imgref=%s", "docker://"+image),
-		mountPoint,
+	// Подготовка команды для запуска podman
+	cmd := exec.Command("sudo", "podman", "run", "--rm", "--privileged", "--pid=host",
+		"--security-opt", "label=type:unconfined_t",
+		"-v", "/var/lib/containers:/var/lib/containers",
+		"-v", "/dev:/dev",
+		"-v", fmt.Sprintf("%s:/output", currentDir),
+		"--security-opt", "label=disable",
+		image,
+		"sh", "-c", fmt.Sprintf(
+			"/output/src/ostree.sh && bootc install --skip-fetch-check --generic-image --disable-selinux "+
+				"--root-mount-spec=UUID=%s --boot-mount-spec=UUID=%s "+
+				rootUUID, bootUUID,
+		),
 	)
 
 	cmd.Stdout = os.Stdout
