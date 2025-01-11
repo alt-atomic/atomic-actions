@@ -218,7 +218,7 @@ func installToFilesystem(image string, disk string) error {
 		"--skip-fetch-check", "--generic-image", "--disable-selinux",
 		fmt.Sprintf("--root-mount-spec=UUID=%s", getUUID(partitions[2])),
 		fmt.Sprintf("--boot-mount-spec=UUID=%s", getUUID(partitions[1])),
-		fmt.Sprintf("--source-imgref=%s", image),
+		fmt.Sprintf("--source-imgref=%s", "docker://"+image),
 		mountPoint,
 	)
 
