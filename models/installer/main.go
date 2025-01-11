@@ -201,13 +201,11 @@ func installToFilesystem(image string, disk string) error {
 		return fmt.Errorf("не удалось получить UUID для EFI раздела %s", partitions[0])
 	}
 
-	fmt.Printf(efiUUID)
 	bootUUID := getUUID(partitions[1])
 	if bootUUID == "" {
 		return fmt.Errorf("не удалось получить UUID для boot раздела %s", partitions[1])
 	}
 
-	fmt.Printf(bootUUID)
 	rootUUID := getUUID(partitions[2])
 	if rootUUID == "" {
 		return fmt.Errorf("не удалось получить UUID для root раздела %s", partitions[2])
@@ -218,7 +216,13 @@ func installToFilesystem(image string, disk string) error {
 		log.Fatalf("Ошибка получения текущего рабочего каталога: %v", err)
 	}
 
-	fmt.Printf(rootUUID)
+	fmt.Printf(fmt.Sprintf(
+		"/output/src/ostree.sh && bootc install to-filesystem --skip-fetch-check --generic-image --disable-selinux "+
+			"--root-mount-spec=UUID=%s --boot-mount-spec=UUID=%s",
+		rootUUID, bootUUID,
+	))
+
+	return nil
 	// Подготовка команды для запуска podman
 	cmd := exec.Command("sudo", "podman", "run", "--rm", "--privileged", "--pid=host",
 		"--security-opt", "label=type:unconfined_t",
