@@ -28,7 +28,7 @@ func Run() {
 	}
 	log.Printf("Выбранный образ: %s\n\n", imageResult)
 
-	// Шаг 2: Выбор Диска
+	// Шаг 2: Выбор диска
 	diskResult := RunDiskStep()
 	if diskResult == "" {
 		log.Println("Диск не был выбран.")
@@ -104,11 +104,12 @@ func confirmAction(prompt string) bool {
 			return false
 		}
 		response = strings.ToLower(strings.TrimSpace(response))
-		if response == "y" || response == "yes" {
+		switch response {
+		case "y", "yes":
 			return true
-		} else if response == "n" || response == "no" || response == "" {
+		case "n", "no", "":
 			return false
-		} else {
+		default:
 			fmt.Println("Пожалуйста, ответьте 'y' или 'n'.")
 		}
 	}
@@ -122,183 +123,81 @@ func validateDisk(disk string) bool {
 	return true
 }
 
-// Уничтожение данных и создание разметки
+// prepareDisk выполняет подготовку диска
 func prepareDisk(disk string, rootFileSystem string) error {
 	log.Printf("Подготовка диска %s с root файловой системой %s...\n", disk, rootFileSystem)
 
-	// Уничтожение данных на диске
-	cmd := exec.Command("wipefs", "--all", disk)
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("ошибка очистки диска: %v", err)
+	commands := [][]string{
+		{"wipefs", "--all", disk},
+		{"parted", "-s", disk, "mklabel", "gpt"},
+		{"parted", "-s", disk, "mkpart", "primary", "1MiB", "513MiB"},
+		{"parted", "-s", disk, "mkpart", "primary", "513MiB", "1.5GiB"},
+		{"parted", "-s", disk, "mkpart", "primary", "1.5GiB", "100%"},
 	}
 
-	// Создание новой GPT-разметки
-	cmd = exec.Command("parted", "-s", disk, "mklabel", "gpt")
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("ошибка создания GPT-разметки: %v", err)
+	for _, args := range commands {
+		cmd := exec.Command(args[0], args[1:]...)
+		cmd.Stdout = os.Stdout
+		cmd.Stderr = os.Stderr
+		if err := cmd.Run(); err != nil {
+			return fmt.Errorf("ошибка выполнения команды %s: %v", args[0], err)
+		}
 	}
 
-	// Создание EFI раздела (512 MB)
-	cmd = exec.Command("parted", "-s", disk, "mkpart", "primary", "1MiB", "513MiB")
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("ошибка создания EFI раздела: %v", err)
-	}
-
-	// Создание boot раздела (1 GB)
-	cmd = exec.Command("parted", "-s", disk, "mkpart", "primary", "513MiB", "1.5GiB")
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("ошибка создания boot раздела: %v", err)
-	}
-
-	// Создание root раздела (остаток диска)
-	cmd = exec.Command("parted", "-s", disk, "mkpart", "primary", "1.5GiB", "100%")
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("ошибка создания root раздела: %v", err)
-	}
-
-	// Получение имен разделов
-	efiPartition, err := getPartitionName(disk, 1)
+	partitions, err := getPartitionNames(disk)
 	if err != nil {
-		return fmt.Errorf("ошибка получения имени EFI раздела: %v", err)
-	}
-	bootPartition, err := getPartitionName(disk, 2)
-	if err != nil {
-		return fmt.Errorf("ошибка получения имени boot раздела: %v", err)
-	}
-	rootPartition, err := getPartitionName(disk, 3)
-	if err != nil {
-		return fmt.Errorf("ошибка получения имени root раздела: %v", err)
+		return fmt.Errorf("ошибка получения разделов: %v", err)
 	}
 
-	// Форматирование EFI раздела
-	cmd = exec.Command("mkfs.fat", "-F32", efiPartition)
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("ошибка форматирования EFI раздела: %v", err)
+	if len(partitions) < 3 {
+		return fmt.Errorf("недостаточно разделов на диске")
 	}
 
-	// Форматирование boot раздела
-	cmd = exec.Command("mkfs."+rootFileSystem, bootPartition)
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("ошибка форматирования boot раздела: %v", err)
+	formats := []struct {
+		cmd  string
+		args []string
+	}{
+		{"mkfs.fat", []string{"-F32", partitions[0]}},
+		{"mkfs.ext4", []string{partitions[1]}},
+		{"mkfs.ext4", []string{partitions[2]}},
 	}
 
-	// Форматирование root раздела
-	cmd = exec.Command("mkfs."+rootFileSystem, rootPartition)
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("ошибка форматирования root раздела: %v", err)
+	for _, format := range formats {
+		cmd := exec.Command(format.cmd, format.args...)
+		cmd.Stdout = os.Stdout
+		cmd.Stderr = os.Stderr
+		if err := cmd.Run(); err != nil {
+			return fmt.Errorf("ошибка форматирования %s: %v", format.args[0], err)
+		}
 	}
 
 	log.Printf("Диск %s успешно подготовлен.\n", disk)
 	return nil
 }
 
-func formatPartitions(disk string, rootFileSystem string) error {
-	// Получение имен разделов
-	efiPartition, err := getPartitionName(disk, 1)
-	if err != nil {
-		return fmt.Errorf("ошибка получения имени EFI раздела: %v", err)
-	}
-	bootPartition, err := getPartitionName(disk, 2)
-	if err != nil {
-		return fmt.Errorf("ошибка получения имени boot раздела: %v", err)
-	}
-	rootPartition, err := getPartitionName(disk, 3)
-	if err != nil {
-		return fmt.Errorf("ошибка получения имени root раздела: %v", err)
-	}
-
-	// Форматирование EFI раздела
-	cmd := exec.Command("mkfs.fat", "-F32", efiPartition)
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("ошибка форматирования EFI раздела: %v", err)
-	}
-
-	// Форматирование boot раздела
-	cmd = exec.Command("mkfs."+rootFileSystem, bootPartition)
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("ошибка форматирования boot раздела: %v", err)
-	}
-
-	// Форматирование root раздела
-	cmd = exec.Command("mkfs."+rootFileSystem, rootPartition)
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("ошибка форматирования root раздела: %v", err)
-	}
-
-	return nil
-}
-
 // installToFilesystem выполняет установку с использованием bootc
 func installToFilesystem(image string, disk string) error {
 	mountPoint := "/mnt/target"
-
-	// Получение имен разделов
-	efiPartition, err := getPartitionName(disk, 1)
+	partitions, err := getPartitionNames(disk)
 	if err != nil {
-		return fmt.Errorf("ошибка получения имени EFI раздела: %v", err)
-	}
-	bootPartition, err := getPartitionName(disk, 2)
-	if err != nil {
-		return fmt.Errorf("ошибка получения имени boot раздела: %v", err)
-	}
-	rootPartition, err := getPartitionName(disk, 3)
-	if err != nil {
-		return fmt.Errorf("ошибка получения имени root раздела: %v", err)
+		return fmt.Errorf("ошибка получения разделов: %v", err)
 	}
 
-	// Получение UUID разделов
-	rootUUID := getUUID(rootPartition)
-	if rootUUID == "" {
-		return fmt.Errorf("не удалось получить UUID для раздела %s", rootPartition)
+	if len(partitions) < 3 {
+		return fmt.Errorf("недостаточно разделов на диске")
 	}
 
-	bootUUID := getUUID(bootPartition)
-	if bootUUID == "" {
-		return fmt.Errorf("не удалось получить UUID для раздела %s", bootPartition)
-	}
-
-	efiUUID := getUUID(efiPartition)
-	if efiUUID == "" {
-		return fmt.Errorf("не удалось получить UUID для раздела %s", efiPartition)
-	}
-
-	// Монтируем root раздел
+	rootPartition := partitions[2]
 	if err := mountDisk(rootPartition, mountPoint); err != nil {
 		return fmt.Errorf("ошибка монтирования root раздела: %v", err)
 	}
 	defer unmountDisk(mountPoint)
 
-	// Выполнение установки с использованием bootc
-	cmd := exec.Command(
-		"bootc", "install-to-filesystem",
-		"--skip-fetch-check",
-		"--generic-image",
-		"--disable-selinux",
-		fmt.Sprintf("--root-mount-spec=UUID=%s", rootUUID),
-		fmt.Sprintf("--boot-mount-spec=UUID=%s", bootUUID),
-		fmt.Sprintf("--efi-mount-spec=UUID=%s", efiUUID),
+	cmd := exec.Command("bootc", "install-to-filesystem",
+		"--skip-fetch-check", "--generic-image", "--disable-selinux",
+		fmt.Sprintf("--root-mount-spec=UUID=%s", getUUID(partitions[2])),
+		fmt.Sprintf("--boot-mount-spec=UUID=%s", getUUID(partitions[1])),
+		fmt.Sprintf("--efi-mount-spec=UUID=%s", getUUID(partitions[0])),
 		fmt.Sprintf("--source-imgref=%s", image),
 		mountPoint,
 	)
@@ -311,34 +210,36 @@ func installToFilesystem(image string, disk string) error {
 		return fmt.Errorf("ошибка выполнения bootc: %v", err)
 	}
 
-	// Монтируем EFI раздел для загрузчика
-	efiMountPoint := fmt.Sprintf("%s/boot/efi", mountPoint)
-	if err := mountDisk(efiPartition, efiMountPoint); err != nil {
-		return fmt.Errorf("ошибка монтирования EFI раздела: %v", err)
-	}
-	defer unmountDisk(efiMountPoint)
-
 	log.Println("Установка прошла успешно.")
 	return nil
+}
+
+// getPartitionNames возвращает имена разделов на диске
+func getPartitionNames(disk string) ([]string, error) {
+	cmd := exec.Command("lsblk", "-ln", "-o", "NAME", disk)
+	output, err := cmd.Output()
+	if err != nil {
+		return nil, fmt.Errorf("ошибка выполнения lsblk: %v", err)
+	}
+	lines := strings.Fields(string(output))
+	for i := range lines {
+		lines[i] = "/dev/" + lines[i]
+	}
+	return lines, nil
 }
 
 // mountDisk монтирует указанный раздел в точку монтирования
 func mountDisk(disk string, mountPoint string) error {
 	log.Printf("Монтирование диска %s в %s...\n", disk, mountPoint)
-
-	// Создание точки монтирования, если не существует
 	if err := os.MkdirAll(mountPoint, 0755); err != nil {
 		return fmt.Errorf("ошибка создания точки монтирования: %v", err)
 	}
-
-	// Монтирование раздела
 	cmd := exec.Command("mount", disk, mountPoint)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	if err := cmd.Run(); err != nil {
 		return fmt.Errorf("ошибка монтирования диска: %v", err)
 	}
-
 	return nil
 }
 
@@ -360,19 +261,4 @@ func getUUID(disk string) string {
 		return ""
 	}
 	return strings.TrimSpace(string(output))
-}
-
-// getPartitionName возвращает имя раздела по его номеру
-func getPartitionName(disk string, number int) (string, error) {
-	cmd := exec.Command("lsblk", "-ln", "-o", "NAME", disk)
-	output, err := cmd.Output()
-	if err != nil {
-		return "", fmt.Errorf("ошибка выполнения lsblk: %v", err)
-	}
-	partitions := strings.Fields(string(output))
-	if number-1 < 0 || number-1 >= len(partitions) {
-		return "", fmt.Errorf("неверный номер раздела: %d", number)
-	}
-	// Определение полного пути к разделу
-	return "/dev/" + partitions[number-1], nil
 }
