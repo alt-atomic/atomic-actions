@@ -162,9 +162,9 @@ func prepareDisk(disk string, rootFileSystem string) error {
 		cmd  string
 		args []string
 	}{
-		{"mkfs.fat", []string{"-F32", partitions[0]}}, // Форматирование EFI раздела
-		{"mkfs.ext4", []string{partitions[1]}},        // Форматирование boot раздела
-		{"mkfs.ext4", []string{partitions[2]}},        // Форматирование root раздела
+		{"mkfs.fat", []string{"-F32", partitions[1]}}, // Форматирование EFI раздела
+		{"mkfs.ext4", []string{partitions[2]}},        // Форматирование boot раздела
+		{"mkfs.ext4", []string{partitions[3]}},        // Форматирование root раздела
 	}
 
 	for _, format := range formats {
