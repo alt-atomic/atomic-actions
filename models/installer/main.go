@@ -153,6 +153,7 @@ func prepareDisk(disk string, rootFileSystem string) error {
 		return fmt.Errorf("недостаточно разделов на диске")
 	}
 
+	fmt.Printf("Partitions: %s\n", strings.Join(partitions, ", "))
 	formats := []struct {
 		cmd  string
 		args []string
@@ -214,28 +215,18 @@ func installToFilesystem(image string, disk string) error {
 	return nil
 }
 
-// getPartitionNames возвращает полные имена разделов на диске
+// getPartitionNames возвращает имена разделов на диске
 func getPartitionNames(disk string) ([]string, error) {
-	// Определение корневого имени диска (например, "vda")
-	diskName := strings.TrimPrefix(disk, "/dev/")
-
-	// Используем lsblk, чтобы получить список разделов
 	cmd := exec.Command("lsblk", "-ln", "-o", "NAME", disk)
 	output, err := cmd.Output()
 	if err != nil {
 		return nil, fmt.Errorf("ошибка выполнения lsblk: %v", err)
 	}
-
 	lines := strings.Fields(string(output))
-	var partitions []string
-	for _, line := range lines {
-		// Убедимся, что имя начинается с имени диска (например, "vda")
-		if strings.HasPrefix(line, diskName) {
-			partitions = append(partitions, "/dev/"+line)
-		}
+	for i := range lines {
+		lines[i] = "/dev/" + lines[i]
 	}
-
-	return partitions, nil
+	return lines, nil
 }
 
 // mountDisk монтирует указанный раздел в точку монтирования
