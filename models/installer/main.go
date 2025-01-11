@@ -122,7 +122,7 @@ func validateDisk(disk string) bool {
 	return true
 }
 
-// prepareDisk уничтожает данные, создаёт разметку и необходимые файловые системы
+// Уничтожение данных и создание разметки
 func prepareDisk(disk string, rootFileSystem string) error {
 	log.Printf("Подготовка диска %s с root файловой системой %s...\n", disk, rootFileSystem)
 
@@ -142,8 +142,8 @@ func prepareDisk(disk string, rootFileSystem string) error {
 		return fmt.Errorf("ошибка создания GPT-разметки: %v", err)
 	}
 
-	// Создание EFI раздела (512 MB)
-	cmd = exec.Command("parted", "-s", disk, "mkpart", "EFI System", "fat32", "1MiB", "513MiB")
+	// Создание EFI раздела (512 MB) без указания файловой системы
+	cmd = exec.Command("parted", "-s", disk, "mkpart", "EFI System", "1MiB", "513MiB")
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	if err := cmd.Run(); err != nil {
@@ -151,7 +151,7 @@ func prepareDisk(disk string, rootFileSystem string) error {
 	}
 
 	// Создание boot раздела (1 GB)
-	cmd = exec.Command("parted", "-s", disk, "mkpart", "Linux extended boot", rootFileSystem, "513MiB", "1.5GiB")
+	cmd = exec.Command("parted", "-s", disk, "mkpart", "Linux extended boot", "513MiB", "1.5GiB")
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	if err := cmd.Run(); err != nil {
@@ -159,13 +159,23 @@ func prepareDisk(disk string, rootFileSystem string) error {
 	}
 
 	// Создание root раздела (остаток диска)
-	cmd = exec.Command("parted", "-s", disk, "mkpart", "Linux filesystem", rootFileSystem, "1.5GiB", "100%")
+	cmd = exec.Command("parted", "-s", disk, "mkpart", "Linux filesystem", "1.5GiB", "100%")
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	if err := cmd.Run(); err != nil {
 		return fmt.Errorf("ошибка создания root раздела: %v", err)
 	}
 
+	// Форматирование разделов
+	if err := formatPartitions(disk, rootFileSystem); err != nil {
+		return fmt.Errorf("ошибка форматирования разделов: %v", err)
+	}
+
+	log.Printf("Диск %s успешно подготовлен.\n", disk)
+	return nil
+}
+
+func formatPartitions(disk string, rootFileSystem string) error {
 	// Получение имен разделов
 	efiPartition, err := getPartitionName(disk, 1)
 	if err != nil {
@@ -181,7 +191,7 @@ func prepareDisk(disk string, rootFileSystem string) error {
 	}
 
 	// Форматирование EFI раздела
-	cmd = exec.Command("mkfs.fat", "-F32", efiPartition)
+	cmd := exec.Command("mkfs.fat", "-F32", efiPartition)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	if err := cmd.Run(); err != nil {
@@ -204,7 +214,6 @@ func prepareDisk(disk string, rootFileSystem string) error {
 		return fmt.Errorf("ошибка форматирования root раздела: %v", err)
 	}
 
-	log.Printf("Диск %s успешно подготовлен.\n", disk)
 	return nil
 }
 
