@@ -216,25 +216,25 @@ func installToFilesystem(image string, disk string) error {
 		log.Fatalf("Ошибка получения текущего рабочего каталога: %v", err)
 	}
 
-	fmt.Printf(fmt.Sprintf(
-		"/output/src/ostree.sh && bootc install to-filesystem --skip-fetch-check --generic-image --disable-selinux "+
-			"--root-mount-spec=UUID=%s --boot-mount-spec=UUID=%s",
-		rootUUID, bootUUID,
-	))
-
-	return nil
+	//fmt.Printf(fmt.Sprintf(
+	//	"/output/src/ostree.sh && bootc install to-filesystem --skip-fetch-check --generic-image --disable-selinux "+
+	//		"--root-mount-spec=UUID=%s --boot-mount-spec=UUID=%s",
+	//	rootUUID, bootUUID,
+	//))
+	//return nil
 	// Подготовка команды для запуска podman
 	cmd := exec.Command("sudo", "podman", "run", "--rm", "--privileged", "--pid=host",
 		"--security-opt", "label=type:unconfined_t",
 		"-v", "/var/lib/containers:/var/lib/containers",
 		"-v", "/dev:/dev",
+		"-v", "/mnt/target:/mnt/target",
 		"-v", fmt.Sprintf("%s:/output", currentDir),
 		"--security-opt", "label=disable",
 		image,
 		"sh", "-c", fmt.Sprintf(
 			"/output/src/ostree.sh && bootc install to-filesystem --skip-fetch-check --generic-image --disable-selinux "+
-				"--root-mount-spec=UUID=%s --boot-mount-spec=UUID=%s",
-			rootUUID, bootUUID,
+				"--root-mount-spec=UUID=%s --boot-mount-spec=UUID=%s %s",
+			rootUUID, bootUUID, "/mnt/target",
 		),
 	)
 
@@ -272,7 +272,7 @@ func getPartitionNames(disk string) ([]string, error) {
 
 // mountDisk монтирует указанный раздел в точку монтирования
 func mountDisk(disk string, mountPoint string) error {
-	log.Printf("Монтирование диска %s в %s...\n", disk, mountPoint)
+	fmt.Printf("Монтирование диска %s в %s...\n", disk, mountPoint)
 	if err := os.MkdirAll(mountPoint, 0755); err != nil {
 		return fmt.Errorf("ошибка создания точки монтирования: %v", err)
 	}
