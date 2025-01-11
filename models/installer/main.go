@@ -116,18 +116,10 @@ func confirmAction(prompt string) bool {
 
 // validateDisk проверяет существование диска
 func validateDisk(disk string) bool {
-	info, err := os.Stat(disk)
-	if err != nil {
+	if _, err := os.Stat(disk); os.IsNotExist(err) {
 		return false
 	}
-
-	// Проверяем, является ли объект блочным устройством
-	stat, ok := info.Sys().(*syscall.Stat_t)
-	if !ok {
-		return false
-	}
-
-	return (stat.Mode & syscall.S_IFMT) == syscall.S_IFBLK
+	return true
 }
 
 // prepareDisk уничтожает данные, создаёт разметку и необходимые файловые системы

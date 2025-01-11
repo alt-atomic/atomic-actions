@@ -50,14 +50,18 @@ func getAvailableDisks() []string {
 	lines := strings.Split(strings.TrimSpace(string(out)), "\n")
 	var disks []string
 
-	// Исключаем устройства zram и подобные
+	// Исключаем устройства zram и loop
 	for _, line := range lines {
 		fields := strings.Fields(line)
 		if len(fields) >= 3 && fields[2] == "disk" { // Оставляем только устройства типа "disk"
 			if strings.HasPrefix(fields[0], "zram") || strings.HasPrefix(fields[0], "loop") {
 				continue
 			}
-			disks = append(disks, "/dev/"+fields[0]+" ("+fields[1]+")")
+
+			// Формируем отображаемое название
+			devicePath := "/dev/" + fields[0]
+			displayName := devicePath + " (" + fields[1] + ")"
+			disks = append(disks, displayName)
 		}
 	}
 	return disks
@@ -82,7 +86,9 @@ func (m Disk) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				}
 			case "enter", " ":
 				if m.confirmCursor == 0 {
-					m.Result = m.choices[m.selected]
+					// Извлекаем только путь устройства, убирая объем
+					selectedDisk := m.choices[m.selected]
+					m.Result = strings.Split(selectedDisk, " ")[0] // Берем только "/dev/vdX"
 					return m, tea.Quit
 				} else {
 					m.selected = -1
