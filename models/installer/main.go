@@ -130,9 +130,10 @@ func prepareDisk(disk string, rootFileSystem string) error {
 	commands := [][]string{
 		{"wipefs", "--all", disk},
 		{"parted", "-s", disk, "mklabel", "gpt"},
-		{"parted", "-s", disk, "mkpart", "primary", "1MiB", "513MiB"},
-		{"parted", "-s", disk, "mkpart", "primary", "513MiB", "1.5GiB"},
-		{"parted", "-s", disk, "mkpart", "primary", "1.5GiB", "100%"},
+		{"parted", "-s", disk, "mkpart", "EFI System", "fat32", "1MiB", "601MiB"},
+		{"parted", "-s", disk, "set", "1", "boot", "on"}, // Устанавливаем тип EFI
+		{"parted", "-s", disk, "mkpart", "Linux extended boot", "ext4", "601MiB", "1601MiB"},
+		{"parted", "-s", disk, "mkpart", "Linux filesystem", "ext4", "1601MiB", "100%"},
 	}
 
 	for _, args := range commands {
@@ -153,14 +154,14 @@ func prepareDisk(disk string, rootFileSystem string) error {
 		return fmt.Errorf("недостаточно разделов на диске")
 	}
 
-	fmt.Printf("Partitions: %s\n", strings.Join(partitions, ", "))
+	// Форматирование разделов
 	formats := []struct {
 		cmd  string
 		args []string
 	}{
-		{"mkfs.fat", []string{"-F32", partitions[0]}},
-		{"mkfs.ext4", []string{partitions[1]}},
-		{"mkfs.ext4", []string{partitions[2]}},
+		{"mkfs.fat", []string{"-F32", partitions[0]}}, // Форматирование EFI раздела
+		{"mkfs.ext4", []string{partitions[1]}},        // Форматирование boot раздела
+		{"mkfs.ext4", []string{partitions[2]}},        // Форматирование root раздела
 	}
 
 	for _, format := range formats {
