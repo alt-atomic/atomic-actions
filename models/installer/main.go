@@ -8,8 +8,6 @@ import (
 	"os/exec"
 	"strings"
 	"syscall"
-
-	tea "github.com/charmbracelet/bubbletea"
 )
 
 // Run запускает процесс установки
@@ -21,13 +19,6 @@ func Run() {
 	if err := checkCommands(); err != nil {
 		log.Fatalf("Необходимая команда отсутствует: %v\n", err)
 	}
-
-	// Настройка логирования
-	f, err := tea.LogToFile("install.log", "debug")
-	if err != nil {
-		log.Fatalf("Не удалось создать лог-файл: %v\n", err)
-	}
-	defer f.Close()
 
 	// Шаг 1: Выбор образа
 	imageResult := RunImageStep()
