@@ -181,6 +181,7 @@ func prepareDisk(disk string, rootFileSystem string) error {
 // installToFilesystem выполняет установку с использованием bootc
 func installToFilesystem(image string, disk string) error {
 	mountPoint := "/mnt/target"
+	mountPointBoot := "/mnt/target/boot"
 	partitions, err := getPartitionNames(disk)
 	if err != nil {
 		return fmt.Errorf("ошибка получения разделов: %v", err)
@@ -195,6 +196,12 @@ func installToFilesystem(image string, disk string) error {
 		return fmt.Errorf("ошибка монтирования root раздела: %v", err)
 	}
 	defer unmountDisk(mountPoint)
+
+	bootPartition := partitions[1]
+	if err := mountDisk(bootPartition, mountPointBoot); err != nil {
+		return fmt.Errorf("ошибка монтирования boot раздела: %v", err)
+	}
+	defer unmountDisk(mountPointBoot)
 
 	efiUUID := getUUID(partitions[0])
 	if efiUUID == "" {
