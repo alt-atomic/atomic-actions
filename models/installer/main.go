@@ -229,8 +229,8 @@ func installToFilesystem(image string, disk string) error {
 		image,
 		"sh", "-c", fmt.Sprintf(
 			"/output/src/ostree.sh && bootc install --skip-fetch-check --generic-image --disable-selinux "+
-				"--root-mount-spec=UUID=%s --boot-mount-spec=UUID=%s "+
-				rootUUID, bootUUID,
+				"--root-mount-spec=UUID=%s --boot-mount-spec=UUID=%s",
+			rootUUID, bootUUID,
 		),
 	)
 
