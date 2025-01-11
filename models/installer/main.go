@@ -196,7 +196,25 @@ func installToFilesystem(image string, disk string) error {
 	}
 	defer unmountDisk(mountPoint)
 
-	cmd := exec.Command("bootc", "install-to-filesystem",
+	efiUUID := getUUID(partitions[0])
+	if efiUUID == "" {
+		return fmt.Errorf("не удалось получить UUID для EFI раздела %s", partitions[0])
+	}
+
+	fmt.Printf(efiUUID)
+	bootUUID := getUUID(partitions[1])
+	if bootUUID == "" {
+		return fmt.Errorf("не удалось получить UUID для boot раздела %s", partitions[1])
+	}
+
+	fmt.Printf(bootUUID)
+	rootUUID := getUUID(partitions[2])
+	if rootUUID == "" {
+		return fmt.Errorf("не удалось получить UUID для root раздела %s", partitions[2])
+	}
+
+	fmt.Printf(rootUUID)
+	cmd := exec.Command("bootc", "install", "to-filesystem",
 		"--skip-fetch-check", "--generic-image", "--disable-selinux",
 		fmt.Sprintf("--root-mount-spec=UUID=%s", getUUID(partitions[2])),
 		fmt.Sprintf("--boot-mount-spec=UUID=%s", getUUID(partitions[1])),
