@@ -130,10 +130,10 @@ func prepareDisk(disk string, rootFileSystem string) error {
 	commands := [][]string{
 		{"wipefs", "--all", disk},
 		{"parted", "-s", disk, "mklabel", "gpt"},
-		{"parted", "-s", disk, "mkpart", "EFI System", "fat32", "1MiB", "601MiB"},
-		{"parted", "-s", disk, "set", "1", "boot", "on"}, // Устанавливаем тип EFI
-		{"parted", "-s", disk, "mkpart", "Linux extended boot", "ext4", "601MiB", "1601MiB"},
-		{"parted", "-s", disk, "mkpart", "Linux filesystem", "ext4", "1601MiB", "100%"},
+		{"parted", "-s", disk, "mkpart", "primary", "fat32", "1MiB", "601MiB"},
+		{"parted", "-s", disk, "set", "1", "boot", "on"},
+		{"parted", "-s", disk, "mkpart", "primary", "ext4", "601MiB", "1601MiB"},
+		{"parted", "-s", disk, "mkpart", "primary", "ext4", "1601MiB", "100%"},
 	}
 
 	for _, args := range commands {
