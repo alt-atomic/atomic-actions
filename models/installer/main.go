@@ -137,14 +137,13 @@ func prepareDisk(disk string, rootFileSystem string, typeBoot string) error {
 		commands = [][]string{
 			{"wipefs", "--all", disk},
 			{"parted", "-s", disk, "mklabel", "gpt"},
-			{"parted", "-s", disk, "mkpart", "primary", "fat32", "1MiB", "601MiB"},   // EFI раздел (600 МБ)
-			{"parted", "-s", disk, "name", "1", "EFI-System"},                        // Имя для EFI раздела
-			{"parted", "-s", disk, "set", "1", "boot", "on"},                         // Пометка EFI раздела как загрузочного
-			{"parted", "-s", disk, "mkpart", "primary", "ext4", "601MiB", "2601MiB"}, // Boot раздел (2 ГБ)
-			{"parted", "-s", disk, "name", "2", "Boot"},                              // Имя для Boot раздела
-			{"parted", "-s", disk, "set", "2", "legacy_boot", "on"},                  // Boot раздел
-			{"parted", "-s", disk, "mkpart", "primary", "ext4", "2601MiB", "100%"},   // Root раздел
-			{"parted", "-s", disk, "name", "3", "Root"},                              // Имя для Root раздела
+			{"parted", "-s", disk, "mkpart", "primary", "1MiB", "5MiB"},
+			{"parted", "-s", disk, "set", "1", "bios_grub", "on"},                     // BIOS Boot Partition (4 MiB)
+			{"parted", "-s", disk, "mkpart", "primary", "fat32", "5MiB", "1005MiB"},   // Увеличение EFI раздела до 1 ГБ
+			{"parted", "-s", disk, "set", "2", "boot", "on"},                          // EFI раздел
+			{"parted", "-s", disk, "mkpart", "primary", "ext4", "1005MiB", "2005MiB"}, // Коррекция для boot раздела
+			{"parted", "-s", disk, "set", "3", "legacy_boot", "on"},                   // Boot раздел
+			{"parted", "-s", disk, "mkpart", "primary", "ext4", "2005MiB", "100%"},
 		}
 	} else if typeBoot == "UEFI" {
 		// Разметка для режима UEFI (без BIOS раздела)
