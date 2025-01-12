@@ -48,7 +48,7 @@ func Run() {
 	}
 
 	// Тип файловой системы для root
-	typeBoot := "legacy" // legacy или UEFI делать проверку dmidecode | grep -i "EFI"
+	typeBoot := "UEFI" // legacy или UEFI делать проверку dmidecode | grep -i "EFI"
 	// Тип файловой системы для root
 	typeFileSystem := "btrfs"
 
