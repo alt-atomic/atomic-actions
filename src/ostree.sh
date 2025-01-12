@@ -14,6 +14,8 @@ else
   mkdir -p /sysroot/ostree/repo
   ostree --repo=/sysroot/ostree/repo init --mode=archive
 
+  touch /etc/fstab
+  echo "# eto test" > /etc/fstab
   ## Подготовка временной директории
   mkdir -p /tmp/rootfscopy
 
