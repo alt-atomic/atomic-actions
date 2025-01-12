@@ -368,9 +368,9 @@ func installToFilesystem(image string, disk string, typeBoot string, rootFileSys
 
 	// Финальное размонтирование
 	log.Println("Финальное размонтирование...")
-	unmountDisk(mountPoint)
-	unmountDisk(mountPointBoot)
 	unmountDisk(efiMountPoint)
+	unmountDisk(mountPointBoot)
+	unmountDisk(mountPoint)
 
 	log.Println("Установка прошла успешно.")
 	return nil
