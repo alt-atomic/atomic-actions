@@ -48,16 +48,13 @@ func Run() {
 	}
 
 	// Тип файловой системы для root
-	typeBoot := "legacy" // legacy или UEFI делать проверку dmidecode | grep -i "EFI"
-	// Тип файловой системы для root
 	typeFileSystem := "ext4"
 
 	// Шаг 3: Уничтожение данных и создание разметки
-	if err := prepareDisk(diskResult, typeFileSystem, typeBoot); err != nil {
+	if err := prepareDisk(diskResult, typeFileSystem); err != nil {
 		log.Fatalf("Ошибка подготовки диска: %v\n", err)
 	}
 
-	return
 	// Шаг 4: Установка с использованием bootc
 	if err := installToFilesystem(imageResult, diskResult); err != nil {
 		log.Fatalf("Ошибка установки: %v\n", err)
@@ -126,42 +123,21 @@ func validateDisk(disk string) bool {
 }
 
 // prepareDisk выполняет подготовку диска
-func prepareDisk(disk string, rootFileSystem string, typeBoot string) error {
-	log.Printf("Подготовка диска %s с файловой системой %s в режиме %s...\n", disk, rootFileSystem, typeBoot)
+func prepareDisk(disk string, rootFileSystem string) error {
+	log.Printf("Подготовка диска %s с файловой системой %s...\n", disk, rootFileSystem)
 
-	// Команды для разметки
-	var commands [][]string
-
-	if typeBoot == "legacy" {
-		// Разметка для режима Legacy
-		commands = [][]string{
-			{"wipefs", "--all", disk},
-			{"parted", "-s", disk, "mklabel", "gpt"},
-			{"parted", "-s", disk, "mkpart", "primary", "fat32", "1MiB", "601MiB"},   // EFI раздел (600 МБ)
-			{"parted", "-s", disk, "name", "1", "EFI-System"},                        // Имя для EFI раздела
-			{"parted", "-s", disk, "set", "1", "boot", "on"},                         // Пометка EFI раздела как загрузочного
-			{"parted", "-s", disk, "mkpart", "primary", "ext4", "601MiB", "2601MiB"}, // Boot раздел (2 ГБ)
-			{"parted", "-s", disk, "name", "2", "Boot"},                              // Имя для Boot раздела
-			{"parted", "-s", disk, "set", "2", "legacy_boot", "on"},                  // Boot раздел
-			{"parted", "-s", disk, "mkpart", "primary", "ext4", "2601MiB", "100%"},   // Root раздел
-			{"parted", "-s", disk, "name", "3", "Root"},                              // Имя для Root раздела
-		}
-	} else if typeBoot == "UEFI" {
-		// Разметка для режима UEFI (без BIOS раздела)
-		commands = [][]string{
-			{"wipefs", "--all", disk},
-			{"parted", "-s", disk, "mklabel", "gpt"},
-			{"parted", "-s", disk, "mkpart", "primary", "fat32", "1MiB", "601MiB"},   // EFI раздел (600 МБ)
-			{"parted", "-s", disk, "set", "1", "boot", "on"},                         // Пометка EFI раздела как загрузочного
-			{"parted", "-s", disk, "mkpart", "primary", "ext4", "601MiB", "2601MiB"}, // Boot раздел (2 ГБ)
-			{"parted", "-s", disk, "set", "2", "legacy_boot", "on"},                  // Boot раздел
-			{"parted", "-s", disk, "mkpart", "primary", "ext4", "2601MiB", "100%"},   // Root раздел
-		}
-	} else {
-		return fmt.Errorf("неизвестный тип загрузки: %s", typeBoot)
+	commands := [][]string{
+		{"wipefs", "--all", disk},
+		{"parted", "-s", disk, "mklabel", "gpt"},
+		{"parted", "-s", disk, "mkpart", "primary", "1MiB", "5MiB"},
+		{"parted", "-s", disk, "set", "1", "bios_grub", "on"},                     // BIOS Boot Partition (4 MiB)
+		{"parted", "-s", disk, "mkpart", "primary", "fat32", "5MiB", "1005MiB"},   // Увеличение EFI раздела до 1 ГБ
+		{"parted", "-s", disk, "set", "2", "boot", "on"},                          // EFI раздел
+		{"parted", "-s", disk, "mkpart", "primary", "ext4", "1005MiB", "2005MiB"}, // Коррекция для boot раздела
+		{"parted", "-s", disk, "set", "3", "legacy_boot", "on"},                   // Boot раздел
+		{"parted", "-s", disk, "mkpart", "primary", "ext4", "2005MiB", "100%"},
 	}
 
-	// Выполнение команд
 	for _, args := range commands {
 		cmd := exec.Command(args[0], args[1:]...)
 		cmd.Stdout = os.Stdout
@@ -181,29 +157,13 @@ func prepareDisk(disk string, rootFileSystem string, typeBoot string) error {
 	}
 
 	// Форматирование разделов
-	var formats []struct {
+	formats := []struct {
 		cmd  string
 		args []string
-	}
-
-	if typeBoot == "legacy" {
-		formats = []struct {
-			cmd  string
-			args []string
-		}{
-			{"mkfs.vfat", []string{"-F32", partitions[1]}}, // Форматирование EFI раздела
-			{"mkfs.ext4", []string{partitions[2]}},         // Форматирование boot раздела
-			{"mkfs.ext4", []string{partitions[3]}},         // Форматирование root раздела
-		}
-	} else if typeBoot == "UEFI" {
-		formats = []struct {
-			cmd  string
-			args []string
-		}{
-			{"mkfs.vfat", []string{"-F32", partitions[0]}}, // Форматирование EFI раздела
-			{"mkfs.ext4", []string{partitions[1]}},         // Форматирование boot раздела
-			{"mkfs.ext4", []string{partitions[2]}},         // Форматирование root раздела
-		}
+	}{
+		{"mkfs.vfat", []string{"-F32", partitions[1]}}, // Форматирование EFI раздела
+		{"mkfs.ext4", []string{partitions[2]}},         // Форматирование boot раздела
+		{"mkfs.ext4", []string{partitions[3]}},         // Форматирование root раздела
 	}
 
 	for _, format := range formats {
