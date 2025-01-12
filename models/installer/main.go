@@ -220,7 +220,6 @@ func prepareDisk(disk string, rootFileSystem string, typeBoot string) error {
 	return nil
 }
 
-// создает подтопы Btrfs
 func createBtrfsSubVolumes(rootPartition string) error {
 	mountPoint := "/mnt/btrfs-setup"
 	if err := os.MkdirAll(mountPoint, 0755); err != nil {
@@ -228,7 +227,7 @@ func createBtrfsSubVolumes(rootPartition string) error {
 	}
 	defer os.RemoveAll(mountPoint)
 
-	if err := mountDisk(rootPartition, mountPoint); err != nil {
+	if err := mountDisk(rootPartition, mountPoint, "rw,subvol=/"); err != nil {
 		return fmt.Errorf("ошибка монтирования Btrfs раздела: %v", err)
 	}
 	defer unmountDisk(mountPoint)
@@ -273,54 +272,38 @@ func installToFilesystem(image string, disk string, typeBoot string, rootFileSys
 	efiMountPoint := "/mnt/target/boot/efi"
 	var installCmd string
 
+	// Получаем текущую рабочую директорию
+	currentDir, err := os.Getwd()
+	if err != nil {
+		log.Fatalf("Ошибка получения текущего рабочего каталога: %v", err)
+	}
+
 	// Получаем именованные разделы
 	partitions, err := getNamedPartitions(disk, typeBoot)
 	if err != nil {
 		return fmt.Errorf("ошибка получения разделов: %v", err)
 	}
 
+	// Монтируем разделы
 	if rootFileSystem == "btrfs" {
-		if err := mountBtrfsSubVolume(partitions["root"], "@", mountPoint); err != nil {
+		if err := mountDisk(partitions["root"], mountPoint, "subvol=@"); err != nil {
 			return fmt.Errorf("ошибка монтирования корневого подтома: %v", err)
 		}
-		//defer unmountDisk(mountPoint)
 	} else {
-		if err := mountDisk(partitions["root"], mountPoint); err != nil {
+		if err := mountDisk(partitions["root"], mountPoint, ""); err != nil {
 			return fmt.Errorf("ошибка монтирования root раздела: %v", err)
 		}
-		//defer unmountDisk(mountPoint)
 	}
 
-	// Монтирование boot раздела
-	if err := mountDisk(partitions["boot"], mountPointBoot); err != nil {
+	if err := mountDisk(partitions["boot"], mountPointBoot, ""); err != nil {
 		return fmt.Errorf("ошибка монтирования boot раздела: %v", err)
 	}
-	defer unmountDisk(mountPointBoot)
 
-	if err := mountDisk(partitions["efi"], efiMountPoint); err != nil {
-		return fmt.Errorf("ошибка монтирования boot раздела: %v", err)
-	}
-	defer unmountDisk(efiMountPoint)
-
-	bootUUID := getUUID(partitions["boot"])
-	if bootUUID == "" {
-		return fmt.Errorf("не удалось получить UUID для boot раздела %s", partitions["boot"])
+	if err := mountDisk(partitions["efi"], efiMountPoint, ""); err != nil {
+		return fmt.Errorf("ошибка монтирования EFI раздела: %v", err)
 	}
 
-	log.Printf("Boot UUID: %s", bootUUID)
-
-	rootUUID := getUUID(partitions["root"])
-	if rootUUID == "" {
-		return fmt.Errorf("не удалось получить UUID для root раздела %s", partitions["root"])
-	}
-
-	log.Printf("Root UUID: %s", rootUUID)
-
-	currentDir, err := os.Getwd()
-	if err != nil {
-		log.Fatalf("Ошибка получения текущего рабочего каталога: %v", err)
-	}
-
+	// Выполняем установку с использованием bootc
 	if typeBoot == "UEFI" {
 		installCmd = fmt.Sprintf(
 			"/output/src/ostree.sh && bootc install to-filesystem --skip-fetch-check --disable-selinux %s",
@@ -343,7 +326,6 @@ func installToFilesystem(image string, disk string, typeBoot string, rootFileSys
 		image,
 		"sh", "-c", installCmd,
 	)
-	// Выполнение команды установки
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 
@@ -352,9 +334,43 @@ func installToFilesystem(image string, disk string, typeBoot string, rootFileSys
 		return fmt.Errorf("ошибка выполнения bootc: %v", err)
 	}
 
+	// Размонтирование всех разделов
+	log.Println("Размонтирование разделов после установки...")
+	unmountDisk(mountPoint)
+	unmountDisk(mountPointBoot)
+	unmountDisk(efiMountPoint)
+
+	// Повторное монтирование разделов в режиме записи
+	log.Println("Повторное монтирование разделов...")
+	if rootFileSystem == "btrfs" {
+		if err := mountDisk(partitions["root"], mountPoint, "rw,subvol=@"); err != nil {
+			return fmt.Errorf("ошибка повторного монтирования корневого подтома: %v", err)
+		}
+	} else {
+		if err := mountDisk(partitions["root"], mountPoint, "rw"); err != nil {
+			return fmt.Errorf("ошибка повторного монтирования root раздела: %v", err)
+		}
+	}
+
+	if err := mountDisk(partitions["boot"], mountPointBoot, "rw"); err != nil {
+		return fmt.Errorf("ошибка повторного монтирования boot раздела: %v", err)
+	}
+
+	if err := mountDisk(partitions["efi"], efiMountPoint, "rw"); err != nil {
+		return fmt.Errorf("ошибка повторного монтирования EFI раздела: %v", err)
+	}
+
+	// Генерация fstab
+	log.Println("Генерация fstab...")
 	if err := generateFstab(mountPoint, partitions, rootFileSystem); err != nil {
 		return fmt.Errorf("ошибка генерации fstab: %v", err)
 	}
+
+	// Финальное размонтирование
+	log.Println("Финальное размонтирование...")
+	unmountDisk(mountPoint)
+	unmountDisk(mountPointBoot)
+	unmountDisk(efiMountPoint)
 
 	log.Println("Установка прошла успешно.")
 	return nil
@@ -479,12 +495,17 @@ func getPartitions(disk string) ([]string, error) {
 }
 
 // mountDisk монтирует указанный раздел в точку монтирования
-func mountDisk(disk string, mountPoint string) error {
-	fmt.Printf("Монтирование диска %s в %s...\n", disk, mountPoint)
+func mountDisk(disk string, mountPoint string, options string) error {
+	fmt.Printf("Монтирование диска %s в %s с опциями '%s'...\n", disk, mountPoint, options)
 	if err := os.MkdirAll(mountPoint, 0755); err != nil {
 		return fmt.Errorf("ошибка создания точки монтирования: %v", err)
 	}
-	cmd := exec.Command("mount", disk, mountPoint)
+	args := []string{}
+	if options != "" {
+		args = append(args, "-o", options)
+	}
+	args = append(args, disk, mountPoint)
+	cmd := exec.Command("mount", args...)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	if err := cmd.Run(); err != nil {
