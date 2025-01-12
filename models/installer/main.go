@@ -3,7 +3,6 @@ package installer
 import (
 	"bufio"
 	"fmt"
-	"io"
 	"log"
 	"os"
 	"os/exec"
@@ -77,6 +76,7 @@ func checkRoot() {
 // checkCommands проверяет наличие необходимых системных команд
 func checkCommands() error {
 	commands := []string{
+		"rsync",
 		"wipefs",
 		"parted",
 		"mkfs.fat",
@@ -345,12 +345,12 @@ func installToFilesystem(image string, disk string, typeBoot string, rootFileSys
 		}
 
 		// Копируем содержимое /var в подтом @var
-		if err := copyDirectory(fmt.Sprintf("%s/var", ostreeDeployPath), mountBtrfsVar); err != nil {
+		if err := copyWithRsync(fmt.Sprintf("%s/var/", ostreeDeployPath), mountBtrfsVar); err != nil {
 			return fmt.Errorf("ошибка копирования /var в @var: %v", err)
 		}
 
 		// Копируем содержимое /home в подтом @home
-		if err := copyDirectory(fmt.Sprintf("%s/home", ostreeDeployPath), mountBtrfsHome); err != nil {
+		if err := copyWithRsync(fmt.Sprintf("%s/home/", ostreeDeployPath), mountBtrfsHome); err != nil {
 			return fmt.Errorf("ошибка копирования /home в @home: %v", err)
 		}
 
@@ -391,41 +391,15 @@ func installToFilesystem(image string, disk string, typeBoot string, rootFileSys
 	return nil
 }
 
-// copyDirectory копирует содержимое одной директории в другую
-func copyDirectory(src string, dst string) error {
-	entries, err := os.ReadDir(src)
-	if err != nil {
-		return fmt.Errorf("ошибка чтения директории %s: %v", src, err)
-	}
+// copyWithRsync выполняет копирование с использованием команды rsync
+func copyWithRsync(src string, dst string) error {
+	cmd := exec.Command("rsync", "-aHAXv", src, dst)
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
 
-	for _, entry := range entries {
-		srcPath := fmt.Sprintf("%s/%s", src, entry.Name())
-		dstPath := fmt.Sprintf("%s/%s", dst, entry.Name())
-
-		if entry.IsDir() {
-			if err := os.MkdirAll(dstPath, 0755); err != nil {
-				return fmt.Errorf("ошибка создания директории %s: %v", dstPath, err)
-			}
-			if err := copyDirectory(srcPath, dstPath); err != nil {
-				return err
-			}
-		} else {
-			input, err := os.Open(srcPath)
-			if err != nil {
-				return fmt.Errorf("ошибка открытия файла %s: %v", srcPath, err)
-			}
-			defer input.Close()
-
-			output, err := os.Create(dstPath)
-			if err != nil {
-				return fmt.Errorf("ошибка создания файла %s: %v", dstPath, err)
-			}
-			defer output.Close()
-
-			if _, err := io.Copy(output, input); err != nil {
-				return fmt.Errorf("ошибка копирования содержимого из %s в %s: %v", srcPath, dstPath, err)
-			}
-		}
+	log.Printf("Копирование с использованием rsync: %s -> %s\n", src, dst)
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("ошибка выполнения rsync: %v", err)
 	}
 	return nil
 }
@@ -554,7 +528,7 @@ func getPartitions(disk string) ([]string, error) {
 
 // mountDisk монтирует указанный раздел в точку монтирования
 func mountDisk(disk string, mountPoint string, options string) error {
-	fmt.Printf("Монтирование диска %s в %s с опциями '%s'...\n", disk, mountPoint, options)
+	fmt.Printf("Монтирование диска %s в %s с опциями '%s'\n", disk, mountPoint, options)
 	if err := os.MkdirAll(mountPoint, 0755); err != nil {
 		return fmt.Errorf("ошибка создания точки монтирования: %v", err)
 	}
