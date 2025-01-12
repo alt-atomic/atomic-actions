@@ -336,9 +336,9 @@ func installToFilesystem(image string, disk string, typeBoot string, rootFileSys
 
 	// Размонтирование всех разделов
 	log.Println("Размонтирование разделов после установки...")
-	unmountDisk(mountPoint)
-	unmountDisk(mountPointBoot)
 	unmountDisk(efiMountPoint)
+	unmountDisk(mountPointBoot)
+	unmountDisk(mountPoint)
 
 	// Повторное монтирование разделов в режиме записи
 	log.Println("Повторное монтирование разделов...")
