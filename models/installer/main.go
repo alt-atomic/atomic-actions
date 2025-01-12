@@ -283,12 +283,12 @@ func installToFilesystem(image string, disk string, typeBoot string, rootFileSys
 		if err := mountBtrfsSubVolume(partitions["root"], "@", mountPoint); err != nil {
 			return fmt.Errorf("ошибка монтирования корневого подтома: %v", err)
 		}
-		defer unmountDisk(mountPoint)
+		//defer unmountDisk(mountPoint)
 	} else {
 		if err := mountDisk(partitions["root"], mountPoint); err != nil {
 			return fmt.Errorf("ошибка монтирования root раздела: %v", err)
 		}
-		defer unmountDisk(mountPoint)
+		//defer unmountDisk(mountPoint)
 	}
 
 	// Монтирование boot раздела
