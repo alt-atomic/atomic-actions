@@ -3,6 +3,7 @@ package installer
 import (
 	"bufio"
 	"fmt"
+	"io"
 	"log"
 	"os"
 	"os/exec"
@@ -50,7 +51,7 @@ func Run() {
 	// Тип файловой системы для root
 	typeBoot := "UEFI" // legacy или UEFI делать проверку dmidecode | grep -i "EFI"
 	// Тип файловой системы для root
-	typeFileSystem := "ext4"
+	typeFileSystem := "btrfs"
 
 	// Шаг 3: Уничтожение данных и создание разметки
 	if err := prepareDisk(diskResult, typeFileSystem, typeBoot); err != nil {
@@ -232,7 +233,7 @@ func createBtrfsSubVolumes(rootPartition string) error {
 	}
 	defer unmountDisk(mountPoint)
 
-	subVolumes := []string{"@", "@home"}
+	subVolumes := []string{"@", "@home", "@var"}
 	for _, subVol := range subVolumes {
 		subVolPath := fmt.Sprintf("%s/%s", mountPoint, subVol)
 		if _, err := os.Stat(subVolPath); os.IsNotExist(err) {
@@ -250,24 +251,11 @@ func createBtrfsSubVolumes(rootPartition string) error {
 	return nil
 }
 
-// mountBtrfsSubvolume монтирует подтом Btrfs
-func mountBtrfsSubVolume(disk string, subVolume string, mountPoint string) error {
-	fmt.Printf("Монтирование подтома %s в %s...\n", subVolume, mountPoint)
-	if err := os.MkdirAll(mountPoint, 0755); err != nil {
-		return fmt.Errorf("ошибка создания точки монтирования: %v", err)
-	}
-	cmd := exec.Command("mount", "-o", fmt.Sprintf("subvol=%s", subVolume), disk, mountPoint)
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("ошибка монтирования подтома %s: %v", subVolume, err)
-	}
-	return nil
-}
-
 // installToFilesystem выполняет установку с использованием bootc
 func installToFilesystem(image string, disk string, typeBoot string, rootFileSystem string) error {
 	mountPoint := "/mnt/target"
+	mountBtrfsVar := "/mnt/btrfs/var"
+	mountBtrfsHome := "/mnt/btrfs/home"
 	mountPointBoot := "/mnt/target/boot"
 	efiMountPoint := "/mnt/target/boot/efi"
 	var installCmd string
@@ -334,18 +322,47 @@ func installToFilesystem(image string, disk string, typeBoot string, rootFileSys
 		return fmt.Errorf("ошибка выполнения bootc: %v", err)
 	}
 
-	// Размонтирование всех разделов
-	log.Println("Размонтирование разделов после установки...")
 	unmountDisk(efiMountPoint)
 	unmountDisk(mountPointBoot)
 	unmountDisk(mountPoint)
 
-	// Повторное монтирование разделов в режиме записи
-	log.Println("Повторное монтирование разделов...")
 	if rootFileSystem == "btrfs" {
 		if err := mountDisk(partitions["root"], mountPoint, "rw,subvol=@"); err != nil {
 			return fmt.Errorf("ошибка повторного монтирования корневого подтома: %v", err)
 		}
+
+		if err := mountDisk(partitions["root"], mountBtrfsVar, "subvol=@var"); err != nil {
+			return fmt.Errorf("ошибка монтирования подтома @var: %v", err)
+		}
+
+		if err := mountDisk(partitions["root"], mountBtrfsHome, "subvol=@home"); err != nil {
+			return fmt.Errorf("ошибка монтирования подтома @home: %v", err)
+		}
+
+		ostreeDeployPath, err := findOstreeDeployPath(mountPoint)
+		if err != nil {
+			return fmt.Errorf("ошибка поиска ostree deploy пути: %v", err)
+		}
+
+		// Копируем содержимое /var в подтом @var
+		if err := copyDirectory(fmt.Sprintf("%s/var", ostreeDeployPath), mountBtrfsVar); err != nil {
+			return fmt.Errorf("ошибка копирования /var в @var: %v", err)
+		}
+
+		// Копируем содержимое /home в подтом @home
+		if err := copyDirectory(fmt.Sprintf("%s/home", ostreeDeployPath), mountBtrfsHome); err != nil {
+			return fmt.Errorf("ошибка копирования /home в @home: %v", err)
+		}
+
+		// Удаляем содержимое /var и /home в ostree deploy
+		if err := os.RemoveAll(fmt.Sprintf("%s/var", ostreeDeployPath)); err != nil {
+			return fmt.Errorf("ошибка удаления содержимого /var: %v", err)
+		}
+
+		if err := os.RemoveAll(fmt.Sprintf("%s/home", ostreeDeployPath)); err != nil {
+			return fmt.Errorf("ошибка удаления содержимого /home: %v", err)
+		}
+
 	} else {
 		if err := mountDisk(partitions["root"], mountPoint, "rw"); err != nil {
 			return fmt.Errorf("ошибка повторного монтирования root раздела: %v", err)
@@ -366,13 +383,50 @@ func installToFilesystem(image string, disk string, typeBoot string, rootFileSys
 		return fmt.Errorf("ошибка генерации fstab: %v", err)
 	}
 
-	// Финальное размонтирование
-	log.Println("Финальное размонтирование...")
 	unmountDisk(efiMountPoint)
 	unmountDisk(mountPointBoot)
+	unmountDisk(mountBtrfsVar)
+	unmountDisk(mountBtrfsHome)
 	unmountDisk(mountPoint)
+	return nil
+}
 
-	log.Println("Установка прошла успешно.")
+// copyDirectory копирует содержимое одной директории в другую
+func copyDirectory(src string, dst string) error {
+	entries, err := os.ReadDir(src)
+	if err != nil {
+		return fmt.Errorf("ошибка чтения директории %s: %v", src, err)
+	}
+
+	for _, entry := range entries {
+		srcPath := fmt.Sprintf("%s/%s", src, entry.Name())
+		dstPath := fmt.Sprintf("%s/%s", dst, entry.Name())
+
+		if entry.IsDir() {
+			if err := os.MkdirAll(dstPath, 0755); err != nil {
+				return fmt.Errorf("ошибка создания директории %s: %v", dstPath, err)
+			}
+			if err := copyDirectory(srcPath, dstPath); err != nil {
+				return err
+			}
+		} else {
+			input, err := os.Open(srcPath)
+			if err != nil {
+				return fmt.Errorf("ошибка открытия файла %s: %v", srcPath, err)
+			}
+			defer input.Close()
+
+			output, err := os.Create(dstPath)
+			if err != nil {
+				return fmt.Errorf("ошибка создания файла %s: %v", dstPath, err)
+			}
+			defer output.Close()
+
+			if _, err := io.Copy(output, input); err != nil {
+				return fmt.Errorf("ошибка копирования содержимого из %s в %s: %v", srcPath, dstPath, err)
+			}
+		}
+	}
 	return nil
 }
 
@@ -411,6 +465,10 @@ func generateFstab(mountPoint string, partitions map[string]string, rootFileSyst
 		)
 		fstabContent += fmt.Sprintf(
 			"UUID=%s /home btrfs subvol=@home,compress=zstd:1,x-systemd.device-timeout=0 0 0\n",
+			getUUID(partitions["root"]),
+		)
+		fstabContent += fmt.Sprintf(
+			"UUID=%s /var btrfs subvol=@var,compress=zstd:1,x-systemd.device-timeout=0 0 0\n",
 			getUUID(partitions["root"]),
 		)
 	} else if rootFileSystem == "ext4" {
