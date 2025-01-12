@@ -354,13 +354,14 @@ func installToFilesystem(image string, disk string, typeBoot string, rootFileSys
 			return fmt.Errorf("ошибка копирования /home в @home: %v", err)
 		}
 
-		// Удаляем содержимое /var и /home в ostree deploy
-		if err := os.RemoveAll(fmt.Sprintf("%s/var", ostreeDeployPath)); err != nil {
-			return fmt.Errorf("ошибка удаления содержимого /var: %v", err)
+		// Очищаем содержимое /var, но оставляем папку
+		if err := clearDirectory(fmt.Sprintf("%s/var", ostreeDeployPath)); err != nil {
+			return fmt.Errorf("ошибка очистки содержимого /var: %v", err)
 		}
 
-		if err := os.RemoveAll(fmt.Sprintf("%s/home", ostreeDeployPath)); err != nil {
-			return fmt.Errorf("ошибка удаления содержимого /home: %v", err)
+		// Очищаем содержимое /home, но оставляем папку
+		if err := clearDirectory(fmt.Sprintf("%s/home", ostreeDeployPath)); err != nil {
+			return fmt.Errorf("ошибка очистки содержимого /home: %v", err)
 		}
 
 	} else {
@@ -388,6 +389,23 @@ func installToFilesystem(image string, disk string, typeBoot string, rootFileSys
 	unmountDisk(mountBtrfsVar)
 	unmountDisk(mountBtrfsHome)
 	unmountDisk(mountPoint)
+	return nil
+}
+
+func clearDirectory(path string) error {
+	dirEntries, err := os.ReadDir(path)
+	if err != nil {
+		return fmt.Errorf("ошибка чтения содержимого директории %s: %v", path, err)
+	}
+
+	for _, entry := range dirEntries {
+		entryPath := fmt.Sprintf("%s/%s", path, entry.Name())
+
+		if err := os.RemoveAll(entryPath); err != nil {
+			return fmt.Errorf("ошибка удаления %s: %v", entryPath, err)
+		}
+	}
+
 	return nil
 }
 

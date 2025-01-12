@@ -2,7 +2,7 @@
 set -e
 
 
-echo "Running ostree.sh"
+echo "Проверка ostree commit"
 
 # Проверка `ostree refs`
 if ostree --repo=/sysroot/ostree/repo refs | grep -q .; then
@@ -44,5 +44,3 @@ else
 
   echo "Initial OSTree commit created."
 fi
-
-echo "End ostree.sh"
