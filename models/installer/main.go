@@ -233,7 +233,7 @@ func createBtrfsSubVolumes(rootPartition string) error {
 	}
 	defer unmountDisk(mountPoint)
 
-	subVolumes := []string{"@", "@home", "@var"}
+	subVolumes := []string{"@", "@home"}
 	for _, subVol := range subVolumes {
 		subVolPath := fmt.Sprintf("%s/%s", mountPoint, subVol)
 		if _, err := os.Stat(subVolPath); os.IsNotExist(err) {
@@ -283,7 +283,7 @@ func installToFilesystem(image string, disk string, typeBoot string, rootFileSys
 		if err := mountBtrfsSubVolume(partitions["root"], "@", mountPoint); err != nil {
 			return fmt.Errorf("ошибка монтирования корневого подтома: %v", err)
 		}
-		//defer unmountDisk(mountPoint)
+		defer unmountDisk(mountPoint)
 	} else {
 		if err := mountDisk(partitions["root"], mountPoint); err != nil {
 			return fmt.Errorf("ошибка монтирования root раздела: %v", err)
@@ -295,12 +295,12 @@ func installToFilesystem(image string, disk string, typeBoot string, rootFileSys
 	if err := mountDisk(partitions["boot"], mountPointBoot); err != nil {
 		return fmt.Errorf("ошибка монтирования boot раздела: %v", err)
 	}
-	//defer unmountDisk(mountPointBoot)
+	defer unmountDisk(mountPointBoot)
 
 	if err := mountDisk(partitions["efi"], efiMountPoint); err != nil {
 		return fmt.Errorf("ошибка монтирования boot раздела: %v", err)
 	}
-	//defer unmountDisk(efiMountPoint)
+	defer unmountDisk(efiMountPoint)
 
 	bootUUID := getUUID(partitions["boot"])
 	if bootUUID == "" {
@@ -352,7 +352,81 @@ func installToFilesystem(image string, disk string, typeBoot string, rootFileSys
 		return fmt.Errorf("ошибка выполнения bootc: %v", err)
 	}
 
+	if err := generateFstab(mountPoint, partitions, rootFileSystem); err != nil {
+		return fmt.Errorf("ошибка генерации fstab: %v", err)
+	}
+
 	log.Println("Установка прошла успешно.")
+	return nil
+}
+
+// находит путь к папке, заканчивающейся на .0
+func findOstreeDeployPath(mountPoint string) (string, error) {
+	deployPath := fmt.Sprintf("%s/ostree/deploy/default/deploy", mountPoint)
+	entries, err := os.ReadDir(deployPath)
+	if err != nil {
+		return "", fmt.Errorf("ошибка чтения директории %s: %v", deployPath, err)
+	}
+
+	for _, entry := range entries {
+		if entry.IsDir() && strings.HasSuffix(entry.Name(), ".0") {
+			return fmt.Sprintf("%s/%s", deployPath, entry.Name()), nil
+		}
+	}
+
+	return "", fmt.Errorf("не найдена папка, в %s", deployPath)
+}
+
+func generateFstab(mountPoint string, partitions map[string]string, rootFileSystem string) error {
+	ostreeDeployPath, err := findOstreeDeployPath(mountPoint)
+	if err != nil {
+		return fmt.Errorf("ошибка поиска ostree deploy пути: %v", err)
+	}
+	fstabPath := fmt.Sprintf("%s/etc/fstab", ostreeDeployPath)
+
+	log.Printf("Генерация %s...\n", fstabPath)
+
+	fstabContent := "# Auto generate fstab from atomic-actions installer \n"
+
+	if rootFileSystem == "btrfs" {
+		fstabContent += fmt.Sprintf(
+			"UUID=%s / btrfs subvol=@,compress=zstd:1,x-systemd.device-timeout=0 0 0\n",
+			getUUID(partitions["root"]),
+		)
+		fstabContent += fmt.Sprintf(
+			"UUID=%s /home btrfs subvol=@home,compress=zstd:1,x-systemd.device-timeout=0 0 0\n",
+			getUUID(partitions["root"]),
+		)
+	} else if rootFileSystem == "ext4" {
+		fstabContent += fmt.Sprintf(
+			"UUID=%s / ext4 defaults 1 1\n",
+			getUUID(partitions["root"]),
+		)
+	} else {
+		return fmt.Errorf("неизвестная файловая система: %s", rootFileSystem)
+	}
+
+	fstabContent += fmt.Sprintf(
+		"UUID=%s /boot ext4 defaults 1 2\n",
+		getUUID(partitions["boot"]),
+	)
+	fstabContent += fmt.Sprintf(
+		"UUID=%s /boot/efi vfat umask=0077,shortname=winnt 0 2\n",
+		getUUID(partitions["efi"]),
+	)
+
+	file, err := os.Create(fstabPath)
+	if err != nil {
+		return fmt.Errorf("ошибка создания %s: %v", fstabPath, err)
+	}
+	defer file.Close()
+
+	_, err = file.WriteString(fstabContent)
+	if err != nil {
+		return fmt.Errorf("ошибка записи в %s: %v", fstabPath, err)
+	}
+
+	log.Printf("Файл %s успешно создан.\n", fstabPath)
 	return nil
 }
 
