@@ -269,7 +269,6 @@ func mountBtrfsSubVolume(disk string, subVolume string, mountPoint string) error
 // installToFilesystem выполняет установку с использованием bootc
 func installToFilesystem(image string, disk string, typeBoot string, rootFileSystem string) error {
 	mountPoint := "/mnt/target"
-	mountPointHome := "/mnt/target/home"
 	mountPointBoot := "/mnt/target/boot"
 	efiMountPoint := "/mnt/target/boot/efi"
 	var installCmd string
@@ -284,12 +283,7 @@ func installToFilesystem(image string, disk string, typeBoot string, rootFileSys
 		if err := mountBtrfsSubVolume(partitions["root"], "@", mountPoint); err != nil {
 			return fmt.Errorf("ошибка монтирования корневого подтома: %v", err)
 		}
-		defer unmountDisk(mountPoint)
-
-		if err := mountBtrfsSubVolume(partitions["root"], "@home", mountPointHome); err != nil {
-			return fmt.Errorf("ошибка монтирования корневого подтома: %v", err)
-		}
-		defer unmountDisk(mountPoint)
+		//defer unmountDisk(mountPoint)
 	} else {
 		if err := mountDisk(partitions["root"], mountPoint); err != nil {
 			return fmt.Errorf("ошибка монтирования root раздела: %v", err)
@@ -301,12 +295,12 @@ func installToFilesystem(image string, disk string, typeBoot string, rootFileSys
 	if err := mountDisk(partitions["boot"], mountPointBoot); err != nil {
 		return fmt.Errorf("ошибка монтирования boot раздела: %v", err)
 	}
-	defer unmountDisk(mountPointBoot)
+	//defer unmountDisk(mountPointBoot)
 
 	if err := mountDisk(partitions["efi"], efiMountPoint); err != nil {
 		return fmt.Errorf("ошибка монтирования boot раздела: %v", err)
 	}
-	defer unmountDisk(efiMountPoint)
+	//defer unmountDisk(efiMountPoint)
 
 	bootUUID := getUUID(partitions["boot"])
 	if bootUUID == "" {
