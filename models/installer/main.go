@@ -59,11 +59,11 @@ func Run() {
 
 	return
 	// Шаг 4: Установка с использованием bootc
-	if err := installToFilesystem(imageResult, diskResult); err != nil {
-		log.Fatalf("Ошибка установки: %v\n", err)
-	}
-
-	log.Println("Установка завершена успешно!")
+	//if err := installToFilesystem(imageResult, diskResult); err != nil {
+	//	log.Fatalf("Ошибка установки: %v\n", err)
+	//}
+	//
+	//log.Println("Установка завершена успешно!")
 }
 
 // checkRoot проверяет, запущен ли установщик от имени root
