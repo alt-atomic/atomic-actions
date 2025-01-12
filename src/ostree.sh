@@ -21,18 +21,14 @@ else
 
   rsync -aA \
     --exclude=/home \
-    --exclude=/var/root \
-    --exclude=/var/home \
     --exclude=/dev \
     --exclude=/proc \
     --exclude=/sys \
     --exclude=/run \
     --exclude=/boot \
-    --exclude=/var/log \
     --exclude=/tmp \
-    --exclude=/var/tmp \
-    --exclude=/var/lib/containers \
-    --exclude=/var/lib/openvpn/dev \
+    --exclude=/etc \
+    --exclude=/var \
     --exclude=/output \
     / /tmp/rootfscopy/
 

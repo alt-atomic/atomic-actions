@@ -50,7 +50,7 @@ func Run() {
 	// Тип файловой системы для root
 	typeBoot := "UEFI" // legacy или UEFI делать проверку dmidecode | grep -i "EFI"
 	// Тип файловой системы для root
-	typeFileSystem := "btrfs"
+	typeFileSystem := "ext4"
 
 	// Шаг 3: Уничтожение данных и создание разметки
 	if err := prepareDisk(diskResult, typeFileSystem, typeBoot); err != nil {
