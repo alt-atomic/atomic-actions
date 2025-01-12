@@ -237,7 +237,7 @@ func createBtrfsSubVolumes(rootPartition string) error {
 	for _, subVol := range subVolumes {
 		subVolPath := fmt.Sprintf("%s/%s", mountPoint, subVol)
 		if _, err := os.Stat(subVolPath); os.IsNotExist(err) {
-			cmd := exec.Command("btrfs", "subVolume", "create", subVolPath)
+			cmd := exec.Command("btrfs", "subvolume", "create", subVolPath)
 			cmd.Stdout = os.Stdout
 			cmd.Stderr = os.Stderr
 			if err := cmd.Run(); err != nil {
