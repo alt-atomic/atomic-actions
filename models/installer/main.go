@@ -279,22 +279,11 @@ func installToFilesystem(image string, disk string, typeBoot string, rootFileSys
 		return fmt.Errorf("ошибка получения разделов: %v", err)
 	}
 
-	// Для Btrfs монтируем каждый подтом отдельно
 	if rootFileSystem == "btrfs" {
 		if err := mountBtrfsSubVolume(partitions["root"], "@", mountPoint); err != nil {
 			return fmt.Errorf("ошибка монтирования корневого подтома: %v", err)
 		}
 		defer unmountDisk(mountPoint)
-
-		if err := mountBtrfsSubVolume(partitions["root"], "@home", fmt.Sprintf("%s/home", mountPoint)); err != nil {
-			return fmt.Errorf("ошибка монтирования подтома @home: %v", err)
-		}
-		defer unmountDisk(fmt.Sprintf("%s/home", mountPoint))
-
-		if err := mountBtrfsSubVolume(partitions["root"], "@var", fmt.Sprintf("%s/var", mountPoint)); err != nil {
-			return fmt.Errorf("ошибка монтирования подтома @var: %v", err)
-		}
-		defer unmountDisk(fmt.Sprintf("%s/var", mountPoint))
 	} else {
 		if err := mountDisk(partitions["root"], mountPoint); err != nil {
 			return fmt.Errorf("ошибка монтирования root раздела: %v", err)
