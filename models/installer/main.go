@@ -358,12 +358,6 @@ func installToFilesystem(image string, disk string, typeBoot string, rootFileSys
 		if err := clearDirectory(fmt.Sprintf("%s/var", ostreeDeployPath)); err != nil {
 			return fmt.Errorf("ошибка очистки содержимого /var: %v", err)
 		}
-
-		// Очищаем содержимое /home, но оставляем папку
-		if err := clearDirectory(fmt.Sprintf("%s/home", ostreeDeployPath)); err != nil {
-			return fmt.Errorf("ошибка очистки содержимого /home: %v", err)
-		}
-
 	} else {
 		if err := mountDisk(partitions["root"], mountPoint, "rw"); err != nil {
 			return fmt.Errorf("ошибка повторного монтирования root раздела: %v", err)
