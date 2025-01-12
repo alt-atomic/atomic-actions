@@ -50,7 +50,7 @@ func Run() {
 	// Тип файловой системы для root
 	typeBoot := "legacy" // legacy или UEFI делать проверку dmidecode | grep -i "EFI"
 	// Тип файловой системы для root
-	typeFileSystem := "ext4"
+	typeFileSystem := "btrfs"
 
 	// Шаг 3: Уничтожение данных и создание разметки
 	if err := prepareDisk(diskResult, typeFileSystem, typeBoot); err != nil {
@@ -136,12 +136,12 @@ func prepareDisk(disk string, rootFileSystem string, typeBoot string) error {
 		commands = [][]string{
 			{"wipefs", "--all", disk},
 			{"parted", "-s", disk, "mklabel", "gpt"},
-			{"parted", "-s", disk, "mkpart", "primary", "1MiB", "5MiB"},
-			{"parted", "-s", disk, "set", "1", "bios_grub", "on"},                          // BIOS Boot Partition (4 МиБ)
-			{"parted", "-s", disk, "mkpart", "primary", "fat32", "5MiB", "1005MiB"},        // EFI раздел (1 ГБ)
+			{"parted", "-s", disk, "mkpart", "primary", "1MiB", "3MiB"},                    // BIOS Boot Partition (2 МиБ)
+			{"parted", "-s", disk, "set", "1", "bios_grub", "on"},                          // BIOS Boot Partition
+			{"parted", "-s", disk, "mkpart", "primary", "fat32", "3MiB", "1003MiB"},        // EFI раздел (1 ГБ)
 			{"parted", "-s", disk, "set", "2", "boot", "on"},                               // EFI раздел
-			{"parted", "-s", disk, "mkpart", "primary", "ext4", "1005MiB", "3005MiB"},      // Boot раздел (2 ГБ)
-			{"parted", "-s", disk, "mkpart", "primary", rootFileSystem, "3005MiB", "100%"}, // Root раздел
+			{"parted", "-s", disk, "mkpart", "primary", "ext4", "1003MiB", "3003MiB"},      // Boot раздел (2 ГБ)
+			{"parted", "-s", disk, "mkpart", "primary", rootFileSystem, "3003MiB", "100%"}, // Root раздел
 		}
 	} else if typeBoot == "UEFI" {
 		commands = [][]string{
