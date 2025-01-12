@@ -196,7 +196,7 @@ func prepareDisk(disk string, rootFileSystem string, typeBoot string) error {
 		formats = append(formats, struct {
 			cmd  string
 			args []string
-		}{"mkfs.btrfs", []string{partitions["root"]}})
+		}{"mkfs.btrfs", []string{"-f", partitions["root"]}})
 	} else {
 		return fmt.Errorf("неизвестная файловая система: %s", rootFileSystem)
 	}
