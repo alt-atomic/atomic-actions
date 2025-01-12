@@ -269,6 +269,7 @@ func mountBtrfsSubVolume(disk string, subVolume string, mountPoint string) error
 // installToFilesystem выполняет установку с использованием bootc
 func installToFilesystem(image string, disk string, typeBoot string, rootFileSystem string) error {
 	mountPoint := "/mnt/target"
+	mountPointHome := "/mnt/target/home"
 	mountPointBoot := "/mnt/target/boot"
 	efiMountPoint := "/mnt/target/boot/efi"
 	var installCmd string
@@ -281,6 +282,11 @@ func installToFilesystem(image string, disk string, typeBoot string, rootFileSys
 
 	if rootFileSystem == "btrfs" {
 		if err := mountBtrfsSubVolume(partitions["root"], "@", mountPoint); err != nil {
+			return fmt.Errorf("ошибка монтирования корневого подтома: %v", err)
+		}
+		defer unmountDisk(mountPoint)
+
+		if err := mountBtrfsSubVolume(partitions["root"], "@home", mountPointHome); err != nil {
 			return fmt.Errorf("ошибка монтирования корневого подтома: %v", err)
 		}
 		defer unmountDisk(mountPoint)
