@@ -307,10 +307,14 @@ func installToFilesystem(image string, disk string, typeBoot string, rootFileSys
 		return fmt.Errorf("не удалось получить UUID для boot раздела %s", partitions["boot"])
 	}
 
+	log.Printf("Boot UUID: %s", bootUUID)
+
 	rootUUID := getUUID(partitions["root"])
 	if rootUUID == "" {
 		return fmt.Errorf("не удалось получить UUID для root раздела %s", partitions["root"])
 	}
+
+	log.Printf("Root UUID: %s", rootUUID)
 
 	currentDir, err := os.Getwd()
 	if err != nil {
@@ -319,15 +323,13 @@ func installToFilesystem(image string, disk string, typeBoot string, rootFileSys
 
 	if typeBoot == "UEFI" {
 		installCmd = fmt.Sprintf(
-			"/output/src/ostree.sh && bootc install to-filesystem --skip-fetch-check --disable-selinux "+
-				"--root-mount-spec=UUID=%s --boot-mount-spec=UUID=%s %s",
-			rootUUID, bootUUID, "/mnt/target",
+			"/output/src/ostree.sh && bootc install to-filesystem --skip-fetch-check --disable-selinux %s",
+			"/mnt/target",
 		)
 	} else {
 		installCmd = fmt.Sprintf(
-			"/output/src/ostree.sh && bootc install to-filesystem --skip-fetch-check --generic-image --disable-selinux "+
-				"--root-mount-spec=UUID=%s --boot-mount-spec=UUID=%s %s",
-			rootUUID, bootUUID, "/mnt/target",
+			"/output/src/ostree.sh && bootc install to-filesystem --skip-fetch-check --generic-image --disable-selinux %s",
+			"/mnt/target",
 		)
 	}
 
