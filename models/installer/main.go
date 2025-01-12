@@ -133,34 +133,29 @@ func prepareDisk(disk string, rootFileSystem string, typeBoot string) error {
 	var commands [][]string
 
 	if typeBoot == "legacy" {
-		// Разметка для режима Legacy
 		commands = [][]string{
 			{"wipefs", "--all", disk},
 			{"parted", "-s", disk, "mklabel", "gpt"},
 			{"parted", "-s", disk, "mkpart", "primary", "1MiB", "5MiB"},
-			{"parted", "-s", disk, "set", "1", "bios_grub", "on"},                     // BIOS Boot Partition (4 MiB)
-			{"parted", "-s", disk, "mkpart", "primary", "fat32", "5MiB", "1005MiB"},   // Увеличение EFI раздела до 1 ГБ
-			{"parted", "-s", disk, "set", "2", "boot", "on"},                          // EFI раздел
-			{"parted", "-s", disk, "mkpart", "primary", "ext4", "1005MiB", "2005MiB"}, // Коррекция для boot раздела
-			{"parted", "-s", disk, "set", "3", "legacy_boot", "on"},                   // Boot раздел
-			{"parted", "-s", disk, "mkpart", "primary", "ext4", "2005MiB", "100%"},
+			{"parted", "-s", disk, "set", "1", "bios_grub", "on"},                          // BIOS Boot Partition (4 МиБ)
+			{"parted", "-s", disk, "mkpart", "primary", "fat32", "5MiB", "1005MiB"},        // EFI раздел (1 ГБ)
+			{"parted", "-s", disk, "set", "2", "boot", "on"},                               // EFI раздел
+			{"parted", "-s", disk, "mkpart", "primary", "ext4", "1005MiB", "3005MiB"},      // Boot раздел (2 ГБ)
+			{"parted", "-s", disk, "mkpart", "primary", rootFileSystem, "3005MiB", "100%"}, // Root раздел
 		}
 	} else if typeBoot == "UEFI" {
-		// Разметка для режима UEFI (без BIOS раздела)
 		commands = [][]string{
 			{"wipefs", "--all", disk},
 			{"parted", "-s", disk, "mklabel", "gpt"},
-			{"parted", "-s", disk, "mkpart", "primary", "fat32", "1MiB", "601MiB"},   // EFI раздел (600 МБ)
-			{"parted", "-s", disk, "set", "1", "boot", "on"},                         // Пометка EFI раздела как загрузочного
-			{"parted", "-s", disk, "mkpart", "primary", "ext4", "601MiB", "2601MiB"}, // Boot раздел (2 ГБ)
-			{"parted", "-s", disk, "set", "2", "legacy_boot", "on"},                  // Boot раздел
-			{"parted", "-s", disk, "mkpart", "primary", "ext4", "2601MiB", "100%"},   // Root раздел
+			{"parted", "-s", disk, "mkpart", "primary", "fat32", "1MiB", "601MiB"},         // EFI раздел (600 МБ)
+			{"parted", "-s", disk, "set", "1", "boot", "on"},                               // EFI раздел
+			{"parted", "-s", disk, "mkpart", "primary", "ext4", "601MiB", "2601MiB"},       // Boot раздел (2 ГБ)
+			{"parted", "-s", disk, "mkpart", "primary", rootFileSystem, "2601MiB", "100%"}, // Root раздел
 		}
 	} else {
 		return fmt.Errorf("неизвестный тип загрузки: %s", typeBoot)
 	}
 
-	// Выполнение команд
 	for _, args := range commands {
 		cmd := exec.Command(args[0], args[1:]...)
 		cmd.Stdout = os.Stdout
@@ -170,7 +165,7 @@ func prepareDisk(disk string, rootFileSystem string, typeBoot string) error {
 		}
 	}
 
-	partitions, err := getPartitionNames(disk)
+	partitions, err := getNamedPartitions(disk, typeBoot)
 	if err != nil {
 		return fmt.Errorf("ошибка получения разделов: %v", err)
 	}
@@ -179,31 +174,32 @@ func prepareDisk(disk string, rootFileSystem string, typeBoot string) error {
 		return fmt.Errorf("недостаточно разделов на диске")
 	}
 
-	// Форматирование разделов
-	var formats []struct {
+	var partitionList []string
+	for key, value := range partitions {
+		partitionList = append(partitionList, fmt.Sprintf("%s: %s", key, value))
+	}
+	log.Printf("Partitions: %s\n", strings.Join(partitionList, ", "))
+
+	formats := []struct {
 		cmd  string
 		args []string
+	}{
+		{"mkfs.vfat", []string{"-F32", partitions["efi"]}}, // Форматирование EFI раздела
+		{"mkfs.ext4", []string{partitions["boot"]}},        // Форматирование boot раздела
 	}
 
-	log.Printf("Partitions: %s\n", strings.Join(partitions, ", "))
-	if typeBoot == "legacy" {
-		formats = []struct {
+	if rootFileSystem == "ext4" {
+		formats = append(formats, struct {
 			cmd  string
 			args []string
-		}{
-			{"mkfs.vfat", []string{"-F32", partitions[1]}}, // Форматирование EFI раздела
-			{"mkfs.ext4", []string{partitions[2]}},         // Форматирование boot раздела
-			{"mkfs.ext4", []string{partitions[3]}},         // Форматирование root раздела
-		}
-	} else if typeBoot == "UEFI" {
-		formats = []struct {
+		}{"mkfs.ext4", []string{partitions["root"]}})
+	} else if rootFileSystem == "btrfs" {
+		formats = append(formats, struct {
 			cmd  string
 			args []string
-		}{
-			{"mkfs.vfat", []string{"-F32", partitions[0]}}, // Форматирование EFI раздела
-			{"mkfs.ext4", []string{partitions[1]}},         // Форматирование boot раздела
-			{"mkfs.ext4", []string{partitions[2]}},         // Форматирование root раздела
-		}
+		}{"mkfs.btrfs", []string{partitions["root"]}})
+	} else {
+		return fmt.Errorf("неизвестная файловая система: %s", rootFileSystem)
 	}
 
 	for _, format := range formats {
@@ -215,63 +211,105 @@ func prepareDisk(disk string, rootFileSystem string, typeBoot string) error {
 		}
 	}
 
+	if rootFileSystem == "btrfs" {
+		if err := createBtrfsSubvolumes(partitions["root"]); err != nil {
+			return fmt.Errorf("ошибка создания подтомов Btrfs: %v", err)
+		}
+	}
+
 	log.Printf("Диск %s успешно подготовлен.\n", disk)
 	return nil
 }
 
+// createBtrfsSubvolumes создает подтомы Btrfs
+func createBtrfsSubvolumes(rootPartition string) error {
+	mountPoint := "/mnt/btrfs-setup"
+	if err := os.MkdirAll(mountPoint, 0755); err != nil {
+		return fmt.Errorf("ошибка создания точки монтирования: %v", err)
+	}
+	defer os.RemoveAll(mountPoint)
+
+	if err := mountDisk(rootPartition, mountPoint); err != nil {
+		return fmt.Errorf("ошибка монтирования Btrfs раздела: %v", err)
+	}
+	defer unmountDisk(mountPoint)
+
+	subvolumes := []string{"@", "@home", "@var"}
+	for _, subvol := range subvolumes {
+		subvolPath := fmt.Sprintf("%s/%s", mountPoint, subvol)
+		if _, err := os.Stat(subvolPath); os.IsNotExist(err) {
+			cmd := exec.Command("btrfs", "subvolume", "create", subvolPath)
+			cmd.Stdout = os.Stdout
+			cmd.Stderr = os.Stderr
+			if err := cmd.Run(); err != nil {
+				return fmt.Errorf("ошибка создания подтома %s: %v", subvol, err)
+			}
+		} else {
+			log.Printf("Подтом %s уже существует, пропуск.", subvol)
+		}
+	}
+
+	return nil
+}
+
 // installToFilesystem выполняет установку с использованием bootc
-func installToFilesystem(image string, disk string) error {
+func installToFilesystem(image string, disk string, typeBoot string) error {
 	mountPoint := "/mnt/target"
 	mountPointBoot := "/mnt/target/boot"
 	efiMountPoint := "/mnt/target/boot/efi"
 
-	partitions, err := getPartitionNames(disk)
+	// Получаем именованные разделы
+	partitions, err := getNamedPartitions(disk, typeBoot)
 	if err != nil {
 		return fmt.Errorf("ошибка получения разделов: %v", err)
 	}
 
-	if len(partitions) < 4 {
-		return fmt.Errorf("недостаточно разделов на диске")
-	}
-
-	rootPartition := partitions[3]
-	if err := mountDisk(rootPartition, mountPoint); err != nil {
+	// Монтирование root раздела
+	if err := mountDisk(partitions["root"], mountPoint); err != nil {
 		return fmt.Errorf("ошибка монтирования root раздела: %v", err)
 	}
 	defer unmountDisk(mountPoint)
 
-	bootPartition := partitions[2]
-	if err := mountDisk(bootPartition, mountPointBoot); err != nil {
+	// Монтирование boot раздела
+	if err := mountDisk(partitions["boot"], mountPointBoot); err != nil {
 		return fmt.Errorf("ошибка монтирования boot раздела: %v", err)
 	}
 	defer unmountDisk(mountPointBoot)
 
-	efiPartition := partitions[1]
-	if err := mountDisk(efiPartition, efiMountPoint); err != nil {
-		return fmt.Errorf("ошибка монтирования EFI раздела: %v", err)
-	}
-	defer unmountDisk(efiMountPoint)
-
-	efiUUID := getUUID(partitions[1])
-	if efiUUID == "" {
-		return fmt.Errorf("не удалось получить UUID для EFI раздела %s", partitions[1])
+	// Монтирование EFI раздела, если используется UEFI
+	if typeBoot == "UEFI" {
+		if err := mountDisk(partitions["efi"], efiMountPoint); err != nil {
+			return fmt.Errorf("ошибка монтирования EFI раздела: %v", err)
+		}
+		defer unmountDisk(efiMountPoint)
 	}
 
-	bootUUID := getUUID(partitions[2])
+	// Получение UUID для разделов
+	efiUUID := ""
+	if typeBoot == "UEFI" {
+		efiUUID = getUUID(partitions["efi"])
+		if efiUUID == "" {
+			return fmt.Errorf("не удалось получить UUID для EFI раздела %s", partitions["efi"])
+		}
+	}
+
+	bootUUID := getUUID(partitions["boot"])
 	if bootUUID == "" {
-		return fmt.Errorf("не удалось получить UUID для boot раздела %s", partitions[2])
+		return fmt.Errorf("не удалось получить UUID для boot раздела %s", partitions["boot"])
 	}
 
-	rootUUID := getUUID(partitions[3])
+	rootUUID := getUUID(partitions["root"])
 	if rootUUID == "" {
-		return fmt.Errorf("не удалось получить UUID для root раздела %s", partitions[3])
+		return fmt.Errorf("не удалось получить UUID для root раздела %s", partitions["root"])
 	}
 
+	// Получение текущего рабочего каталога
 	currentDir, err := os.Getwd()
 	if err != nil {
 		log.Fatalf("Ошибка получения текущего рабочего каталога: %v", err)
 	}
 
+	// Команда для установки
 	cmd := exec.Command("sudo", "podman", "run", "--rm", "--privileged", "--pid=host",
 		"--security-opt", "label=type:unconfined_t",
 		"-v", "/var/lib/containers:/var/lib/containers",
@@ -287,6 +325,7 @@ func installToFilesystem(image string, disk string) error {
 		),
 	)
 
+	// Выполнение команды установки
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 
@@ -299,8 +338,36 @@ func installToFilesystem(image string, disk string) error {
 	return nil
 }
 
-// getPartitionNames возвращает имена разделов на диске
-func getPartitionNames(disk string) ([]string, error) {
+// getNamedPartitions возвращает мапу с именованными разделами в зависимости от типа загрузки
+func getNamedPartitions(disk string, typeBoot string) (map[string]string, error) {
+	partitions, err := getPartitions(disk)
+	if err != nil {
+		return nil, err
+	}
+
+	if typeBoot == "legacy" && len(partitions) < 4 {
+		return nil, fmt.Errorf("недостаточно разделов на диске для режима legacy")
+	} else if typeBoot == "UEFI" && len(partitions) < 3 {
+		return nil, fmt.Errorf("недостаточно разделов на диске для режима UEFI")
+	}
+
+	namedPartitions := make(map[string]string)
+	if typeBoot == "legacy" {
+		namedPartitions["bios"] = partitions[0] // BIOS Boot Partition
+		namedPartitions["efi"] = partitions[1]  // EFI Partition
+		namedPartitions["boot"] = partitions[2] // Boot Partition
+		namedPartitions["root"] = partitions[3] // Root Partition
+	} else if typeBoot == "UEFI" {
+		namedPartitions["efi"] = partitions[0]  // EFI Partition
+		namedPartitions["boot"] = partitions[1] // Boot Partition
+		namedPartitions["root"] = partitions[2] // Root Partition
+	}
+
+	return namedPartitions, nil
+}
+
+// getPartitionNames возвращает список всех разделов на указанном диске
+func getPartitions(disk string) ([]string, error) {
 	cmd := exec.Command("lsblk", "-ln", "-o", "NAME,TYPE", disk)
 	output, err := cmd.Output()
 	if err != nil {
@@ -311,7 +378,7 @@ func getPartitionNames(disk string) ([]string, error) {
 	var partitions []string
 	for _, line := range lines {
 		fields := strings.Fields(line)
-		if len(fields) == 2 && fields[1] == "part" { // Проверяем, что тип устройства "part"
+		if len(fields) == 2 && fields[1] == "part" { // Проверяем, что это раздел
 			partitions = append(partitions, "/dev/"+fields[0])
 		}
 	}
