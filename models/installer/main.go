@@ -57,13 +57,12 @@ func Run() {
 		log.Fatalf("Ошибка подготовки диска: %v\n", err)
 	}
 
-	return
 	// Шаг 4: Установка с использованием bootc
-	//if err := installToFilesystem(imageResult, diskResult); err != nil {
-	//	log.Fatalf("Ошибка установки: %v\n", err)
-	//}
-	//
-	//log.Println("Установка завершена успешно!")
+	if err := installToFilesystem(imageResult, diskResult, typeBoot); err != nil {
+		log.Fatalf("Ошибка установки: %v\n", err)
+	}
+
+	log.Println("Установка завершена успешно!")
 }
 
 // checkRoot проверяет, запущен ли установщик от имени root
@@ -276,22 +275,10 @@ func installToFilesystem(image string, disk string, typeBoot string) error {
 	}
 	defer unmountDisk(mountPointBoot)
 
-	// Монтирование EFI раздела, если используется UEFI
-	if typeBoot == "UEFI" {
-		if err := mountDisk(partitions["efi"], efiMountPoint); err != nil {
-			return fmt.Errorf("ошибка монтирования EFI раздела: %v", err)
-		}
-		defer unmountDisk(efiMountPoint)
+	if err := mountDisk(partitions["efi"], efiMountPoint); err != nil {
+		return fmt.Errorf("ошибка монтирования boot раздела: %v", err)
 	}
-
-	// Получение UUID для разделов
-	efiUUID := ""
-	if typeBoot == "UEFI" {
-		efiUUID = getUUID(partitions["efi"])
-		if efiUUID == "" {
-			return fmt.Errorf("не удалось получить UUID для EFI раздела %s", partitions["efi"])
-		}
-	}
+	defer unmountDisk(efiMountPoint)
 
 	bootUUID := getUUID(partitions["boot"])
 	if bootUUID == "" {
@@ -304,35 +291,35 @@ func installToFilesystem(image string, disk string, typeBoot string) error {
 	}
 
 	// Получение текущего рабочего каталога
-	currentDir, err := os.Getwd()
-	if err != nil {
-		log.Fatalf("Ошибка получения текущего рабочего каталога: %v", err)
-	}
+	//currentDir, err := os.Getwd()
+	//if err != nil {
+	//	log.Fatalf("Ошибка получения текущего рабочего каталога: %v", err)
+	//}
 
 	// Команда для установки
-	cmd := exec.Command("sudo", "podman", "run", "--rm", "--privileged", "--pid=host",
-		"--security-opt", "label=type:unconfined_t",
-		"-v", "/var/lib/containers:/var/lib/containers",
-		"-v", "/dev:/dev",
-		"-v", "/mnt/target:/mnt/target",
-		"-v", fmt.Sprintf("%s:/output", currentDir),
-		"--security-opt", "label=disable",
-		image,
-		"sh", "-c", fmt.Sprintf(
-			"/output/src/ostree.sh && bootc install to-filesystem --skip-fetch-check --generic-image --disable-selinux "+
-				"--root-mount-spec=UUID=%s --boot-mount-spec=UUID=%s %s",
-			rootUUID, bootUUID, "/mnt/target",
-		),
-	)
-
-	// Выполнение команды установки
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
+	//cmd := exec.Command("sudo", "podman", "run", "--rm", "--privileged", "--pid=host",
+	//	"--security-opt", "label=type:unconfined_t",
+	//	"-v", "/var/lib/containers:/var/lib/containers",
+	//	"-v", "/dev:/dev",
+	//	"-v", "/mnt/target:/mnt/target",
+	//	"-v", fmt.Sprintf("%s:/output", currentDir),
+	//	"--security-opt", "label=disable",
+	//	image,
+	//	"sh", "-c", fmt.Sprintf(
+	//		"/output/src/ostree.sh && bootc install to-filesystem --skip-fetch-check --generic-image --disable-selinux "+
+	//			"--root-mount-spec=UUID=%s --boot-mount-spec=UUID=%s %s",
+	//		rootUUID, bootUUID, "/mnt/target",
+	//	),
+	//)
+	//
+	//// Выполнение команды установки
+	//cmd.Stdout = os.Stdout
+	//cmd.Stderr = os.Stderr
 
 	log.Println("Выполняется установка...")
-	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("ошибка выполнения bootc: %v", err)
-	}
+	//if err := cmd.Run(); err != nil {
+	//	return fmt.Errorf("ошибка выполнения bootc: %v", err)
+	//}
 
 	log.Println("Установка прошла успешно.")
 	return nil
