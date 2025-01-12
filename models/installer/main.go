@@ -127,7 +127,7 @@ func validateDisk(disk string) bool {
 
 // prepareDisk выполняет подготовку диска
 func prepareDisk(disk string, rootFileSystem string, typeBoot string) error {
-	log.Printf("Подготовка диска %s с файловой системой %s в режиме %s...\n", disk, rootFileSystem, typeBoot)
+	log.Printf("Подготовка диска %s с файловой системой %s в режиме %s\n", disk, rootFileSystem, typeBoot)
 
 	// Команды для разметки
 	var commands [][]string
@@ -186,6 +186,7 @@ func prepareDisk(disk string, rootFileSystem string, typeBoot string) error {
 		args []string
 	}
 
+	log.Printf("Partitions: %s\n", strings.Join(partitions, ", "))
 	if typeBoot == "legacy" {
 		formats = []struct {
 			cmd  string
