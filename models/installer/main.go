@@ -58,7 +58,7 @@ func Run() {
 	}
 
 	// Шаг 4: Установка с использованием bootc
-	if err := installToFilesystem(imageResult, diskResult, typeBoot); err != nil {
+	if err := installToFilesystem(imageResult, diskResult, typeBoot, typeFileSystem); err != nil {
 		log.Fatalf("Ошибка установки: %v\n", err)
 	}
 
@@ -211,7 +211,7 @@ func prepareDisk(disk string, rootFileSystem string, typeBoot string) error {
 	}
 
 	if rootFileSystem == "btrfs" {
-		if err := createBtrfsSubvolumes(partitions["root"]); err != nil {
+		if err := createBtrfsSubVolumes(partitions["root"]); err != nil {
 			return fmt.Errorf("ошибка создания подтомов Btrfs: %v", err)
 		}
 	}
@@ -220,8 +220,8 @@ func prepareDisk(disk string, rootFileSystem string, typeBoot string) error {
 	return nil
 }
 
-// createBtrfsSubvolumes создает подтомы Btrfs
-func createBtrfsSubvolumes(rootPartition string) error {
+// создает подтопы Btrfs
+func createBtrfsSubVolumes(rootPartition string) error {
 	mountPoint := "/mnt/btrfs-setup"
 	if err := os.MkdirAll(mountPoint, 0755); err != nil {
 		return fmt.Errorf("ошибка создания точки монтирования: %v", err)
@@ -233,29 +233,45 @@ func createBtrfsSubvolumes(rootPartition string) error {
 	}
 	defer unmountDisk(mountPoint)
 
-	subvolumes := []string{"@", "@home", "@var"}
-	for _, subvol := range subvolumes {
-		subvolPath := fmt.Sprintf("%s/%s", mountPoint, subvol)
-		if _, err := os.Stat(subvolPath); os.IsNotExist(err) {
-			cmd := exec.Command("btrfs", "subvolume", "create", subvolPath)
+	subVolumes := []string{"@", "@home", "@var"}
+	for _, subVol := range subVolumes {
+		subVolPath := fmt.Sprintf("%s/%s", mountPoint, subVol)
+		if _, err := os.Stat(subVolPath); os.IsNotExist(err) {
+			cmd := exec.Command("btrfs", "subVolume", "create", subVolPath)
 			cmd.Stdout = os.Stdout
 			cmd.Stderr = os.Stderr
 			if err := cmd.Run(); err != nil {
-				return fmt.Errorf("ошибка создания подтома %s: %v", subvol, err)
+				return fmt.Errorf("ошибка создания подтома %s: %v", subVol, err)
 			}
 		} else {
-			log.Printf("Подтом %s уже существует, пропуск.", subvol)
+			log.Printf("Подтом %s уже существует, пропуск.", subVol)
 		}
 	}
 
 	return nil
 }
 
+// mountBtrfsSubvolume монтирует подтом Btrfs
+func mountBtrfsSubVolume(disk string, subVolume string, mountPoint string) error {
+	fmt.Printf("Монтирование подтома %s в %s...\n", subVolume, mountPoint)
+	if err := os.MkdirAll(mountPoint, 0755); err != nil {
+		return fmt.Errorf("ошибка создания точки монтирования: %v", err)
+	}
+	cmd := exec.Command("mount", "-o", fmt.Sprintf("subvol=%s", subVolume), disk, mountPoint)
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("ошибка монтирования подтома %s: %v", subVolume, err)
+	}
+	return nil
+}
+
 // installToFilesystem выполняет установку с использованием bootc
-func installToFilesystem(image string, disk string, typeBoot string) error {
+func installToFilesystem(image string, disk string, typeBoot string, rootFileSystem string) error {
 	mountPoint := "/mnt/target"
 	mountPointBoot := "/mnt/target/boot"
 	efiMountPoint := "/mnt/target/boot/efi"
+	var installCmd string
 
 	// Получаем именованные разделы
 	partitions, err := getNamedPartitions(disk, typeBoot)
@@ -263,11 +279,28 @@ func installToFilesystem(image string, disk string, typeBoot string) error {
 		return fmt.Errorf("ошибка получения разделов: %v", err)
 	}
 
-	// Монтирование root раздела
-	if err := mountDisk(partitions["root"], mountPoint); err != nil {
-		return fmt.Errorf("ошибка монтирования root раздела: %v", err)
+	// Для Btrfs монтируем каждый подтом отдельно
+	if rootFileSystem == "btrfs" {
+		if err := mountBtrfsSubVolume(partitions["root"], "@", mountPoint); err != nil {
+			return fmt.Errorf("ошибка монтирования корневого подтома: %v", err)
+		}
+		defer unmountDisk(mountPoint)
+
+		if err := mountBtrfsSubVolume(partitions["root"], "@home", fmt.Sprintf("%s/home", mountPoint)); err != nil {
+			return fmt.Errorf("ошибка монтирования подтома @home: %v", err)
+		}
+		defer unmountDisk(fmt.Sprintf("%s/home", mountPoint))
+
+		if err := mountBtrfsSubVolume(partitions["root"], "@var", fmt.Sprintf("%s/var", mountPoint)); err != nil {
+			return fmt.Errorf("ошибка монтирования подтома @var: %v", err)
+		}
+		defer unmountDisk(fmt.Sprintf("%s/var", mountPoint))
+	} else {
+		if err := mountDisk(partitions["root"], mountPoint); err != nil {
+			return fmt.Errorf("ошибка монтирования root раздела: %v", err)
+		}
+		defer unmountDisk(mountPoint)
 	}
-	defer unmountDisk(mountPoint)
 
 	// Монтирование boot раздела
 	if err := mountDisk(partitions["boot"], mountPointBoot); err != nil {
@@ -290,36 +323,43 @@ func installToFilesystem(image string, disk string, typeBoot string) error {
 		return fmt.Errorf("не удалось получить UUID для root раздела %s", partitions["root"])
 	}
 
-	// Получение текущего рабочего каталога
-	//currentDir, err := os.Getwd()
-	//if err != nil {
-	//	log.Fatalf("Ошибка получения текущего рабочего каталога: %v", err)
-	//}
+	currentDir, err := os.Getwd()
+	if err != nil {
+		log.Fatalf("Ошибка получения текущего рабочего каталога: %v", err)
+	}
 
-	// Команда для установки
-	//cmd := exec.Command("sudo", "podman", "run", "--rm", "--privileged", "--pid=host",
-	//	"--security-opt", "label=type:unconfined_t",
-	//	"-v", "/var/lib/containers:/var/lib/containers",
-	//	"-v", "/dev:/dev",
-	//	"-v", "/mnt/target:/mnt/target",
-	//	"-v", fmt.Sprintf("%s:/output", currentDir),
-	//	"--security-opt", "label=disable",
-	//	image,
-	//	"sh", "-c", fmt.Sprintf(
-	//		"/output/src/ostree.sh && bootc install to-filesystem --skip-fetch-check --generic-image --disable-selinux "+
-	//			"--root-mount-spec=UUID=%s --boot-mount-spec=UUID=%s %s",
-	//		rootUUID, bootUUID, "/mnt/target",
-	//	),
-	//)
-	//
-	//// Выполнение команды установки
-	//cmd.Stdout = os.Stdout
-	//cmd.Stderr = os.Stderr
+	if typeBoot == "UEFI" {
+		installCmd = fmt.Sprintf(
+			"/output/src/ostree.sh && bootc install to-filesystem --skip-fetch-check --disable-selinux "+
+				"--root-mount-spec=UUID=%s --boot-mount-spec=UUID=%s %s",
+			rootUUID, bootUUID, "/mnt/target",
+		)
+	} else {
+		installCmd = fmt.Sprintf(
+			"/output/src/ostree.sh && bootc install to-filesystem --skip-fetch-check --generic-image --disable-selinux "+
+				"--root-mount-spec=UUID=%s --boot-mount-spec=UUID=%s %s",
+			rootUUID, bootUUID, "/mnt/target",
+		)
+	}
+
+	cmd := exec.Command("sudo", "podman", "run", "--rm", "--privileged", "--pid=host",
+		"--security-opt", "label=type:unconfined_t",
+		"-v", "/var/lib/containers:/var/lib/containers",
+		"-v", "/dev:/dev",
+		"-v", "/mnt/target:/mnt/target",
+		"-v", fmt.Sprintf("%s:/output", currentDir),
+		"--security-opt", "label=disable",
+		image,
+		"sh", "-c", installCmd,
+	)
+	// Выполнение команды установки
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
 
 	log.Println("Выполняется установка...")
-	//if err := cmd.Run(); err != nil {
-	//	return fmt.Errorf("ошибка выполнения bootc: %v", err)
-	//}
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("ошибка выполнения bootc: %v", err)
+	}
 
 	log.Println("Установка прошла успешно.")
 	return nil
