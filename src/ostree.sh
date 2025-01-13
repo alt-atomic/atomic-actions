@@ -2,7 +2,7 @@
 set -e
 
 
-echo "Проверка ostree commit"
+echo "Проверка ostree commit. Ожидайте"
 
 # Проверка `ostree refs`
 if ostree --repo=/sysroot/ostree/repo refs | grep -q .; then
@@ -14,8 +14,6 @@ else
   mkdir -p /sysroot/ostree/repo
   ostree --repo=/sysroot/ostree/repo init --mode=archive
 
-  touch /etc/fstab
-  echo "# eto test" > /etc/fstab
   ## Подготовка временной директории
   mkdir -p /tmp/rootfscopy
 

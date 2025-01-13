@@ -251,7 +251,7 @@ func (m Image) updateChoices(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 }
 
 func (m Image) View() string {
-	header := theme.HeaderStyle.Render("Добро пожаловать в установку Alt Atomic ✨\nВыберите образ:")
+	header := theme.HeaderStyle.Render("Добро пожаловать в установку Alt Atomic \nВыберите образ:")
 
 	var body string
 	for i, choice := range m.choices {
