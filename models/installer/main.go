@@ -39,18 +39,19 @@ func Run() {
 		log.Fatalf("Выбранный диск %s недействителен или не существует.\n", diskResult)
 	}
 
-	log.Printf("Выбранный диск: %s\n", diskResult)
-
-	// Подтверждение удаления данных
-	if !confirmAction(fmt.Sprintf("Вы уверены, что хотите уничтожить все данные на диске %s?", diskResult)) {
-		log.Println("Операция отменена пользователем.")
+	// Шаг 3: Выбор файловой системы
+	typeFileSystem := RunFilesystemStep()
+	if typeFileSystem == "" {
+		log.Println("Файловая система не выбрана.")
 		return
 	}
 
-	// Тип файловой системы для root
-	typeBoot := "UEFI" // legacy или UEFI делать проверку dmidecode | grep -i "EFI"
-	// Тип файловой системы для root
-	typeFileSystem := "btrfs"
+	// Шаг 4: Выбор типа загрузки
+	typeBoot := RunBootModeStep()
+	if typeBoot == "" {
+		log.Println("Boot режим не выбран.")
+		return
+	}
 
 	// Шаг 3: Уничтожение данных и создание разметки
 	if err := prepareDisk(diskResult, typeFileSystem, typeBoot); err != nil {
@@ -132,7 +133,7 @@ func prepareDisk(disk string, rootFileSystem string, typeBoot string) error {
 	// Команды для разметки
 	var commands [][]string
 
-	if typeBoot == "legacy" {
+	if typeBoot == "LEGACY" {
 		commands = [][]string{
 			{"wipefs", "--all", disk},
 			{"parted", "-s", disk, "mklabel", "gpt"},
@@ -403,7 +404,7 @@ func clearDirectory(path string) error {
 	return nil
 }
 
-// copyWithRsync выполняет копирование с использованием команды rsync
+// copyWithRsync копирование с использованием команды rsync
 func copyWithRsync(src string, dst string) error {
 	cmd := exec.Command("rsync", "-aHAXv", src, dst)
 	cmd.Stdout = os.Stdout
@@ -497,14 +498,14 @@ func getNamedPartitions(disk string, typeBoot string) (map[string]string, error)
 		return nil, err
 	}
 
-	if typeBoot == "legacy" && len(partitions) < 4 {
-		return nil, fmt.Errorf("недостаточно разделов на диске для режима legacy")
+	if typeBoot == "LEGACY" && len(partitions) < 4 {
+		return nil, fmt.Errorf("недостаточно разделов на диске для режима LEGACY")
 	} else if typeBoot == "UEFI" && len(partitions) < 3 {
 		return nil, fmt.Errorf("недостаточно разделов на диске для режима UEFI")
 	}
 
 	namedPartitions := make(map[string]string)
-	if typeBoot == "legacy" {
+	if typeBoot == "LEGACY" {
 		namedPartitions["bios"] = partitions[0] // BIOS Boot Partition
 		namedPartitions["efi"] = partitions[1]  // EFI Partition
 		namedPartitions["boot"] = partitions[2] // Boot Partition
