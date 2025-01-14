@@ -85,7 +85,6 @@ func checkCommands() error {
 		"mount",
 		"umount",
 		"blkid",
-		"bootc",
 		"lsblk",
 	}
 	for _, cmd := range commands {
