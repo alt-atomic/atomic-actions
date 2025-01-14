@@ -127,7 +127,7 @@ func (m Filesystem) View() string {
 	footerWrapped := wrapText(footer, 130) // Автоматический перенос строк
 
 	result := header + "\n\n" + body
-	if len(m.Result) > 0 {
+	if len(m.Result) == 0 {
 		result += theme.InfoStyle.Render(footerWrapped)
 	}
 
