@@ -294,12 +294,12 @@ func installToFilesystem(image string, disk string, typeBoot string, rootFileSys
 	// Выполняем установку с использованием bootc
 	if typeBoot == "UEFI" {
 		installCmd = fmt.Sprintf(
-			"/output/src/ostree.sh && bootc install to-filesystem --skip-fetch-check --disable-selinux %s",
+			"[ -f /usr/libexec/init-ostree.sh ] && /usr/libexec/init-ostree.sh; bootc install to-filesystem --skip-fetch-check --disable-selinux %s",
 			"/mnt/target",
 		)
 	} else {
 		installCmd = fmt.Sprintf(
-			"/output/src/ostree.sh && bootc install to-filesystem --skip-fetch-check --generic-image --disable-selinux %s",
+			"[ -f /usr/libexec/init-ostree.sh ] && /usr/libexec/init-ostree.sh; bootc install to-filesystem --skip-fetch-check --generic-image --disable-selinux %s",
 			"/mnt/target",
 		)
 	}
