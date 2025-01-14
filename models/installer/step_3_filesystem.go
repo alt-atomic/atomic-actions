@@ -4,7 +4,6 @@ import (
 	theme "atomic-actions/models/theme"
 	"fmt"
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/muesli/reflow/wordwrap"
 	"os"
 	"strings"
 )
@@ -123,17 +122,6 @@ func (m Filesystem) View() string {
 		}
 	}
 
-	footer := "\n Btrfs - это современная файловая система, которая хорошо подходит для концепции ostree, рекомендуется для большинства случаев. \n"
-	footerWrapped := wrapText(footer, 130) // Автоматический перенос строк
-
-	result := header + "\n\n" + body
-	if len(m.Result) == 0 {
-		result += theme.InfoStyle.Render(footerWrapped)
-	}
-
-	return result
-}
-
-func wrapText(text string, width int) string {
-	return wordwrap.String(text, int(uint(width)))
+	footer := "\nBtrfs - это современная файловая система, она хорошо подходит для концепции ostree.\n"
+	return header + "\n\n" + body + theme.SuccessStyleSimple.Render(footer)
 }
