@@ -16,13 +16,14 @@ var (
 	warningColor  = lipgloss.Color("214")
 
 	// Стили
-	WarningsStyle = lipgloss.NewStyle().Bold(true).Foreground(warningColor)
-	CursorStyle   = lipgloss.NewStyle().Foreground(cursorColor)
-	SelectedStyle = lipgloss.NewStyle().Foreground(selectedColor)
-	HeaderStyle   = lipgloss.NewStyle().Bold(true).Foreground(headerColor)
-	FooterStyle   = lipgloss.NewStyle().Bold(true).Foreground(footerColor)
-	SuccessStyle  = lipgloss.NewStyle().Bold(true).Foreground(successColor)
-	ErrorStyle    = lipgloss.NewStyle().Bold(true).Foreground(errorColor)
+	WarningsStyle       = lipgloss.NewStyle().Bold(true).Foreground(warningColor)
+	CursorStyle         = lipgloss.NewStyle().Foreground(cursorColor)
+	SelectedStyle       = lipgloss.NewStyle().Foreground(selectedColor)
+	HeaderStyle         = lipgloss.NewStyle().Bold(true).Foreground(headerColor)
+	FooterStyle         = lipgloss.NewStyle().Bold(true).Foreground(footerColor)
+	SuccessStyle        = lipgloss.NewStyle().Bold(true).Foreground(successColor)
+	ErrorStyle          = lipgloss.NewStyle().Bold(true).Foreground(errorColor)
+	SuccessStyleRegular = lipgloss.NewStyle().Foreground(successColor)
 
 	InputStyle = lipgloss.NewStyle().
 			BorderStyle(lipgloss.NormalBorder()).
