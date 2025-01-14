@@ -1,7 +1,7 @@
 package installer
 
 import (
-	theme "atomic-actions/models/theme"
+	"atomic-actions/models/installer/theme"
 	"fmt"
 	tea "github.com/charmbracelet/bubbletea"
 	"os"
@@ -123,5 +123,5 @@ func (m Filesystem) View() string {
 	}
 
 	footer := "\nBtrfs - рекомендуемый выбор, хорошо подходит для концепции ostree.\n"
-	return header + "\n\n" + body + theme.InfoStyle.Render(footer)
+	return header + "\n\n" + body + theme.SuccessInfoStyle.Render(footer)
 }

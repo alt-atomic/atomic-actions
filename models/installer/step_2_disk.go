@@ -1,7 +1,7 @@
 package installer
 
 import (
-	theme "atomic-actions/models/theme"
+	"atomic-actions/models/installer/theme"
 	"fmt"
 	tea "github.com/charmbracelet/bubbletea"
 	"os"
