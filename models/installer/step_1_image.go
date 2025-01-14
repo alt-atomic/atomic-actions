@@ -73,13 +73,14 @@ func getAvailableImages() ([]string, error) {
 	// Выполнить команду podman images --format json
 	out, err := exec.Command("sudo", "podman", "images", "--format", "json").Output()
 	if err != nil {
-		return nil, fmt.Errorf("ошибка получения списка изображений: %v", err)
+		return addDefaultImage(nil), nil
 	}
 
 	// Парсинг JSON-ответа
 	var imagesData []ImagePodman
 	if err := json.Unmarshal(out, &imagesData); err != nil {
-		return nil, fmt.Errorf("ошибка парсинга JSON: %v", err)
+		log.Printf("Ошибка парсинга JSON: %v", err)
+		return addDefaultImage(nil), nil
 	}
 
 	// Фильтровать образы с непустыми Names
@@ -90,7 +91,16 @@ func getAvailableImages() ([]string, error) {
 		}
 	}
 
-	return images, nil
+	return addDefaultImage(images), nil
+}
+
+// Добавить стандартный образ, если список пуст
+func addDefaultImage(images []string) []string {
+	const defaultImage = "ghcr.io/skywar-design/alt-atomic:source"
+	if len(images) == 0 {
+		images = append(images, defaultImage)
+	}
+	return images
 }
 
 // Проверка изображения с помощью skopeo

@@ -77,6 +77,7 @@ func checkRoot() {
 // checkCommands проверяет наличие необходимых системных команд
 func checkCommands() error {
 	commands := []string{
+		"podman",
 		"rsync",
 		"wipefs",
 		"parted",
