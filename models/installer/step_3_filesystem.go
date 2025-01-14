@@ -123,10 +123,15 @@ func (m Filesystem) View() string {
 		}
 	}
 
-	footer := "Btrfs - это современная файловая система, которая хорошо подходит для концепции ostree, рекомендуется для большинства случаев."
+	footer := "\n Btrfs - это современная файловая система, которая хорошо подходит для концепции ostree, рекомендуется для большинства случаев. \n"
 	footerWrapped := wrapText(footer, 130) // Автоматический перенос строк
 
-	return header + "\n\n" + body + theme.InfoStyle.Render(footerWrapped)
+	result := header + "\n\n" + body
+	if len(m.Result) > 0 {
+		result += theme.InfoStyle.Render(footerWrapped)
+	}
+
+	return result
 }
 
 func wrapText(text string, width int) string {
