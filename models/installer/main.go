@@ -85,21 +85,61 @@ func cleanupTemporaryPartition(partitions map[string]string, diskResult string) 
 	rootPartitionNumber := strings.TrimPrefix(rootPartition, diskResult)
 	tempPartitionNumber := strings.TrimPrefix(tempPartition, diskResult)
 
-	commands := [][]string{
-		{"umount", "/var/lib/containers"},                                       // Размонтирование временного раздела
-		{"parted", "-s", diskResult, "rm", tempPartitionNumber},                 // Удаление временного раздела
-		{"parted", "-s", diskResult, "resizepart", rootPartitionNumber, "100%"}, // Расширение root-раздела
-		{"resize2fs", rootPartition},                                            // Обновление файловой системы root
+	// Размонтируем временный раздел
+	log.Printf("Размонтирование временного раздела %s...\n", tempPartition)
+	if err := unmount("/var/lib/containers"); err != nil {
+		return fmt.Errorf("ошибка размонтирования временного раздела: %v", err)
 	}
 
-	for _, cmd := range commands {
-		log.Printf("Выполняется команда: %s %v\n", cmd[0], cmd[1:])
-		c := exec.Command(cmd[0], cmd[1:]...)
-		c.Stdout = os.Stdout
-		c.Stderr = os.Stderr
-		if err := c.Run(); err != nil {
-			return fmt.Errorf("ошибка выполнения команды %s: %v", cmd[0], err)
+	// Удаляем временный раздел
+	log.Printf("Удаление временного раздела %s...\n", tempPartition)
+	cmd := exec.Command("parted", "-s", diskResult, "rm", tempPartitionNumber)
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("ошибка удаления временного раздела: %v", err)
+	}
+
+	// Расширяем root-раздел
+	log.Printf("Расширение root-раздела %s до 100%%...\n", rootPartition)
+	cmd = exec.Command("parted", "-s", diskResult, "resizepart", rootPartitionNumber, "100%")
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("ошибка изменения размера root-раздела: %v", err)
+	}
+
+	// Проверяем тип файловой системы root-раздела
+	log.Printf("Проверка типа файловой системы раздела %s...\n", rootPartition)
+	cmd = exec.Command("blkid", "-o", "value", "-s", "TYPE", rootPartition)
+	output, err := cmd.Output()
+	if err != nil {
+		return fmt.Errorf("ошибка проверки типа файловой системы: %v", err)
+	}
+
+	fsType := strings.TrimSpace(string(output))
+	log.Printf("Тип файловой системы: %s\n", fsType)
+
+	if fsType == "btrfs" {
+		// Для btrfs используем btrfs filesystem resize
+		log.Printf("Изменение размера файловой системы btrfs на разделе %s...\n", rootPartition)
+		cmd = exec.Command("btrfs", "filesystem", "resize", "max", rootPartition)
+		cmd.Stdout = os.Stdout
+		cmd.Stderr = os.Stderr
+		if err := cmd.Run(); err != nil {
+			return fmt.Errorf("ошибка изменения размера файловой системы btrfs: %v", err)
 		}
+	} else if fsType == "ext4" {
+		// Для ext4 используем resize2fs
+		log.Printf("Изменение размера файловой системы ext4 на разделе %s...\n", rootPartition)
+		cmd = exec.Command("resize2fs", rootPartition)
+		cmd.Stdout = os.Stdout
+		cmd.Stderr = os.Stderr
+		if err := cmd.Run(); err != nil {
+			return fmt.Errorf("ошибка изменения размера файловой системы ext4: %v", err)
+		}
+	} else {
+		return fmt.Errorf("неподдерживаемая файловая система: %s", fsType)
 	}
 
 	log.Println("Временный раздел удалён, root-раздел расширен.")
