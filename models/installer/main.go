@@ -136,6 +136,13 @@ func checkCommands() error {
 	return nil
 }
 
+// isMounted проверяет, примонтирован ли путь
+func isMounted(path string) bool {
+	cmd := exec.Command("mountpoint", "-q", path)
+	err := cmd.Run()
+	return err == nil
+}
+
 // validateDisk проверяет существование диска
 func validateDisk(disk string) bool {
 	if _, err := os.Stat(disk); os.IsNotExist(err) {
@@ -144,8 +151,31 @@ func validateDisk(disk string) bool {
 	return true
 }
 
+// unmount размонтирует путь, если он примонтирован
+func unmount(path string) error {
+	if isMounted(path) {
+		log.Printf("Размонтирование %s...\n", path)
+		cmd := exec.Command("umount", path)
+		cmd.Stdout = nil
+		cmd.Stderr = nil
+		if err := cmd.Run(); err != nil {
+			return fmt.Errorf("ошибка размонтирования %s: %v", path, err)
+		}
+		log.Printf("%s успешно размонтирован.\n", path)
+	}
+	return nil
+}
+
 // prepareDisk выполняет подготовку диска
 func prepareDisk(disk string, rootFileSystem string, typeBoot string) error {
+	paths := []string{"/var/mnt/temp_containers", "/var/mnt/target", "/var/mnt/target/boot", "/var/mnt/target/boot/efi"}
+
+	for _, path := range paths {
+		if err := unmount(path); err != nil {
+			log.Fatalf("Ошибка при обработке %s: %v\n", path, err)
+		}
+	}
+
 	log.Printf("Подготовка диска %s с файловой системой %s в режиме %s\n", disk, rootFileSystem, typeBoot)
 
 	// Команды для разметки
