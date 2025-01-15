@@ -168,12 +168,10 @@ func unmount(path string) error {
 
 // prepareDisk выполняет подготовку диска
 func prepareDisk(disk string, rootFileSystem string, typeBoot string) error {
-	paths := []string{"/var/mnt/temp_containers", "/var/mnt/target", "/var/mnt/target/boot", "/var/mnt/target/boot/efi"}
+	paths := []string{"/mnt/temp_containers", "/mnt/target", "/mnt/target/boot", "/mnt/target/boot/efi"}
 
 	for _, path := range paths {
-		if err := unmount(path); err != nil {
-			log.Fatalf("Ошибка при обработке %s: %v\n", path, err)
-		}
+		_ = unmount(path)
 	}
 
 	log.Printf("Подготовка диска %s с файловой системой %s в режиме %s\n", disk, rootFileSystem, typeBoot)
