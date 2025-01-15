@@ -9,6 +9,80 @@ import (
 	"syscall"
 )
 
+// managePodmanConfig управляет процессом изменения, перезапуска и восстановления конфигурации Podman
+func managePodmanConfig(newConfigContent string) (func(), error) {
+	configPath := "/etc/containers/storage.conf"
+	backupPath := "/etc/containers/storage.conf.bak"
+
+	// Создание резервной копии файла конфигурации
+	log.Println("Создание резервной копии конфигурации Podman...")
+	if _, err := os.Stat(backupPath); os.IsNotExist(err) {
+		err = copyFile(configPath, backupPath)
+		if err != nil {
+			return nil, fmt.Errorf("ошибка создания резервной копии: %v", err)
+		}
+		log.Printf("Резервная копия создана: %s -> %s\n", configPath, backupPath)
+	} else {
+		log.Println("Резервная копия уже существует, пропускаем создание.")
+	}
+
+	// Замена содержимого файла конфигурации
+	log.Println("Изменение конфигурации Podman...")
+	err := os.WriteFile(configPath, []byte(newConfigContent), 0644)
+	if err != nil {
+		return nil, fmt.Errorf("ошибка записи новой конфигурации: %v", err)
+	}
+
+	// Перезапуск Podman
+	log.Println("Перезапуск Podman...")
+	err = exec.Command("systemctl", "restart", "podman").Run()
+	if err != nil {
+		return nil, fmt.Errorf("ошибка перезапуска Podman: %v", err)
+	}
+	log.Println("Podman перезапущен.")
+
+	// Возвращение исходной конфигурации
+	restoreFunc := func() {
+		log.Println("Восстановление исходной конфигурации Podman...")
+		err := copyFile(backupPath, configPath)
+		if err != nil {
+			log.Printf("Ошибка восстановления конфигурации: %v\n", err)
+			return
+		}
+
+		err = exec.Command("systemctl", "restart", "podman").Run()
+		if err != nil {
+			log.Printf("Ошибка перезапуска Podman при восстановлении: %v\n", err)
+			return
+		}
+		log.Println("Исходная конфигурация Podman успешно восстановлена.")
+	}
+
+	return restoreFunc, nil
+}
+
+// copyFile копирует файл из source в destination
+func copyFile(source, destination string) error {
+	srcFile, err := os.Open(source)
+	if err != nil {
+		return fmt.Errorf("ошибка открытия файла %s: %v", source, err)
+	}
+	defer srcFile.Close()
+
+	destFile, err := os.Create(destination)
+	if err != nil {
+		return fmt.Errorf("ошибка создания файла %s: %v", destination, err)
+	}
+	defer destFile.Close()
+
+	_, err = destFile.ReadFrom(srcFile)
+	if err != nil {
+		return fmt.Errorf("ошибка копирования содержимого файла: %v", err)
+	}
+
+	return nil
+}
+
 // Run запускает процесс установки
 func Run() {
 	// Проверка прав суперпользователя
@@ -52,6 +126,26 @@ func Run() {
 		return
 	}
 
+	// Новый контент конфигурации Podman
+	newConfig := `
+[storage]
+driver = "overlay"
+graphroot = "/mnt/temp_containers/storage"
+runroot = "/mnt/temp_containers/cache"
+
+[storage.options]
+mount_program = "/usr/bin/fuse-overlayfs"
+`
+
+	// Управление конфигурацией Podman
+	restoreFunc, err := managePodmanConfig(newConfig)
+	if err != nil {
+		log.Fatalf("Ошибка настройки конфигурации Podman: %v", err)
+	}
+
+	// Гарантированное восстановление конфигурации
+	defer restoreFunc()
+
 	// Шаг 3: Уничтожение данных и создание разметки
 	if err := prepareDisk(diskResult, typeFileSystem, typeBoot); err != nil {
 		log.Fatalf("Ошибка подготовки диска: %v\n", err)
@@ -86,7 +180,7 @@ func cleanupTemporaryPartition(partitions map[string]string, diskResult string) 
 	tempPartitionNumber := strings.TrimPrefix(tempPartition, diskResult)
 
 	commands := [][]string{
-		{"umount", "/mnt/temp_containers/storage"},                              // Размонтирование временного раздела
+		{"umount", "/mnt/temp_containers"},                                      // Размонтирование временного раздела
 		{"parted", "-s", diskResult, "rm", tempPartitionNumber},                 // Удаление временного раздела
 		{"parted", "-s", diskResult, "resizepart", rootPartitionNumber, "100%"}, // Расширение root-раздела
 		{"resize2fs", rootPartition},                                            // Обновление файловой системы root
@@ -168,7 +262,7 @@ func unmount(path string) error {
 
 // prepareDisk выполняет подготовку диска
 func prepareDisk(disk string, rootFileSystem string, typeBoot string) error {
-	paths := []string{"/mnt/target/boot/efi", "/mnt/target/boot", "/mnt/temp_containers/storage", "/mnt/target"}
+	paths := []string{"/mnt/target/boot/efi", "/mnt/target/boot", "/mnt/temp_containers", "/mnt/target"}
 
 	for _, path := range paths {
 		_ = unmount(path)
@@ -275,7 +369,9 @@ func prepareDisk(disk string, rootFileSystem string, typeBoot string) error {
 	// Создание временного раздела
 	tempCommands := [][]string{
 		{"mkdir", "-p", "/mnt/temp_containers/storage"},
-		{"mount", partitions["temp"], "/mnt/temp_containers/storage"},
+		{"mkdir", "-p", "/mnt/temp_containers/cache"},
+		{"mkdir", "-p", "/mnt/temp_containers/sigstore"},
+		{"mount", partitions["temp"], "/mnt/temp_containers"},
 	}
 
 	for _, args := range tempCommands {
@@ -375,7 +471,6 @@ func installToFilesystem(image string, disk string, typeBoot string, rootFileSys
 	}
 
 	cmd := exec.Command("sudo", "podman", "run", "--rm", "--privileged", "--pid=host",
-		"--root", "/mnt/temp_containers/storage",
 		"--security-opt", "label=type:unconfined_t",
 		"-v", "/mnt/temp_containers:/var/lib/containers",
 		"-v", "/dev:/dev",
