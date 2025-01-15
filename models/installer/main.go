@@ -86,7 +86,7 @@ func cleanupTemporaryPartition(partitions map[string]string, diskResult string) 
 	tempPartitionNumber := strings.TrimPrefix(tempPartition, diskResult)
 
 	commands := [][]string{
-		{"umount", "/mnt/temp_containers"},                                      // Размонтирование временного раздела
+		{"umount", "/mnt/temp_containers/storage"},                              // Размонтирование временного раздела
 		{"parted", "-s", diskResult, "rm", tempPartitionNumber},                 // Удаление временного раздела
 		{"parted", "-s", diskResult, "resizepart", rootPartitionNumber, "100%"}, // Расширение root-раздела
 		{"resize2fs", rootPartition},                                            // Обновление файловой системы root
@@ -168,7 +168,7 @@ func unmount(path string) error {
 
 // prepareDisk выполняет подготовку диска
 func prepareDisk(disk string, rootFileSystem string, typeBoot string) error {
-	paths := []string{"/mnt/target/boot/efi", "/mnt/target/boot", "/mnt/temp_containers", "/mnt/target"}
+	paths := []string{"/mnt/target/boot/efi", "/mnt/target/boot", "/mnt/temp_containers/storage", "/mnt/target"}
 
 	for _, path := range paths {
 		_ = unmount(path)
@@ -274,8 +274,8 @@ func prepareDisk(disk string, rootFileSystem string, typeBoot string) error {
 
 	// Создание временного раздела
 	tempCommands := [][]string{
-		{"mkdir", "-p", "/mnt/temp_containers"},
-		{"mount", partitions["temp"], "/mnt/temp_containers"},
+		{"mkdir", "-p", "/mnt/temp_containers/storage"},
+		{"mount", partitions["temp"], "/mnt/temp_containers/storage"},
 	}
 
 	for _, args := range tempCommands {
@@ -375,7 +375,7 @@ func installToFilesystem(image string, disk string, typeBoot string, rootFileSys
 	}
 
 	cmd := exec.Command("sudo", "podman", "run", "--rm", "--privileged", "--pid=host",
-		"--root", "/mnt/temp_containers",
+		"--root", "/mnt/temp_containers/storage",
 		"--security-opt", "label=type:unconfined_t",
 		"-v", "/mnt/temp_containers:/var/lib/containers",
 		"-v", "/dev:/dev",
