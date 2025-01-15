@@ -538,6 +538,10 @@ func getNamedPartitions(disk string, typeBoot string) (map[string]string, error)
 		return nil, err
 	}
 
+	fmt.Println("Список разделов:")
+	for i, partition := range partitions {
+		fmt.Printf("Раздел %d: %s\n", i+1, partition)
+	}
 	if typeBoot == "LEGACY" && len(partitions) < 4 {
 		return nil, fmt.Errorf("недостаточно разделов на диске для режима LEGACY")
 	} else if typeBoot == "UEFI" && len(partitions) < 3 {
