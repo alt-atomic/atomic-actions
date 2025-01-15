@@ -374,7 +374,7 @@ func installToFilesystem(image string, disk string, typeBoot string, rootFileSys
 		)
 	}
 
-	cmd := exec.Command("sudo", "CONTAINERS_STORAGE_CONF=/home/dm/podman.conf podman", "run", "--rm", "--privileged", "--pid=host",
+	cmd := exec.Command("sudo", "podman", "run", "--rm", "--privileged", "--pid=host",
 		"--security-opt", "label=type:unconfined_t",
 		"-v", "/mnt/temp_containers:/var/lib/containers",
 		"-v", "/dev:/dev",
@@ -384,6 +384,8 @@ func installToFilesystem(image string, disk string, typeBoot string, rootFileSys
 		image,
 		"sh", "-c", installCmd,
 	)
+
+	cmd.Env = append(os.Environ(), "CONTAINERS_STORAGE_CONF=/home/dm/podman.conf")
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 
