@@ -431,9 +431,9 @@ func installToFilesystem(image string, disk string, typeBoot string, rootFileSys
 	cmd.Stderr = os.Stderr
 
 	log.Println("Выполняется установка...")
-	//if err := cmd.Run(); err != nil {
-	//	return fmt.Errorf("ошибка выполнения bootc: %v", err)
-	//}
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("ошибка выполнения bootc: %v", err)
+	}
 
 	unmountDisk(efiMountPoint)
 	unmountDisk(mountPointBoot)
