@@ -33,6 +33,11 @@ func RunDiskStep() string {
 
 func InitialDisk() Disk {
 	disks := getAvailableDisks()
+	if len(disks) == 0 {
+		fmt.Println(theme.ErrorStyle.Render("Дисковые устройства не найдены!"))
+		os.Exit(1)
+	}
+
 	return Disk{
 		choices:       disks,
 		selected:      -1,
