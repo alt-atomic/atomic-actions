@@ -67,23 +67,19 @@ func Run() {
 		log.Fatalf("Ошибка получения именованных разделов: %v", err)
 	}
 
-	if err := cleanupTemporaryPartition(partitions, diskResult); err != nil {
+	if err := cleanupTemporaryPartition(partitions); err != nil {
 		log.Fatalf("Ошибка очистки временного раздела: %v", err)
 	}
 
 	log.Println("Установка завершена успешно!")
 }
 
-func cleanupTemporaryPartition(partitions map[string]string, diskResult string) error {
+func cleanupTemporaryPartition(partitions map[string]string) error {
 	log.Println("Перенос данных из временного раздела в root-раздел...")
 
 	// Получаем разделы
 	rootPartition := partitions["root"]
 	tempPartition := partitions["temp"]
-
-	// Получаем номер root-раздела
-	rootPartitionNumber := strings.TrimPrefix(rootPartition, diskResult)
-	tempPartitionNumber := strings.TrimPrefix(tempPartition, diskResult)
 
 	// Размонтируем временный раздел
 	log.Printf("Размонтирование временного раздела %s...\n", tempPartition)
@@ -93,7 +89,7 @@ func cleanupTemporaryPartition(partitions map[string]string, diskResult string) 
 
 	// Удаляем временный раздел
 	log.Printf("Удаление временного раздела %s...\n", tempPartition)
-	cmd := exec.Command("parted", "-s", diskResult, "rm", tempPartitionNumber)
+	cmd := exec.Command("parted", "-s", tempPartition, "rm", "1")
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	if err := cmd.Run(); err != nil {
@@ -102,7 +98,7 @@ func cleanupTemporaryPartition(partitions map[string]string, diskResult string) 
 
 	// Расширяем root-раздел
 	log.Printf("Расширение root-раздела %s до 100%%...\n", rootPartition)
-	cmd = exec.Command("parted", "-s", diskResult, "resizepart", rootPartitionNumber, "100%")
+	cmd = exec.Command("parted", "-s", rootPartition, "resizepart", "100%")
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	if err := cmd.Run(); err != nil {
