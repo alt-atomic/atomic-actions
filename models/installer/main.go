@@ -1,7 +1,6 @@
 package installer
 
 import (
-	"bufio"
 	"fmt"
 	"log"
 	"os"
@@ -63,7 +62,43 @@ func Run() {
 		log.Fatalf("Ошибка установки: %v\n", err)
 	}
 
+	partitions, err := getNamedPartitions(diskResult, typeBoot)
+	if err != nil {
+		log.Fatalf("Ошибка получения именованных разделов: %v", err)
+	}
+
+	if err := cleanupTemporaryPartition(partitions, diskResult); err != nil {
+		log.Fatalf("Ошибка очистки временного раздела: %v", err)
+	}
+
 	log.Println("Установка завершена успешно!")
+}
+
+func cleanupTemporaryPartition(partitions map[string]string, diskResult string) error {
+	log.Println("Перенос данных из временного раздела в root-раздел...")
+
+	rootPartition := partitions["root"]
+	rootPartitionNumber := strings.TrimPrefix(rootPartition, diskResult)
+
+	commands := [][]string{
+		{"rsync", "-a", "/mnt/temp_containers/", "/var/lib/containers/"},        // Перенос данных обратно в root
+		{"umount", "/mnt/temp_containers"},                                      // Размонтирование временного раздела
+		{"parted", "-s", diskResult, "resizepart", rootPartitionNumber, "100%"}, // Расширение root-раздела
+		{"resize2fs", rootPartition},                                            // Обновление файловой системы root
+	}
+
+	for _, cmd := range commands {
+		log.Printf("Выполняется команда: %s %v\n", cmd[0], cmd[1:])
+		c := exec.Command(cmd[0], cmd[1:]...)
+		c.Stdout = os.Stdout
+		c.Stderr = os.Stderr
+		if err := c.Run(); err != nil {
+			return fmt.Errorf("ошибка выполнения команды %s: %v", cmd[0], err)
+		}
+	}
+
+	log.Println("Временный раздел удалён, root-раздел расширен.")
+	return nil
 }
 
 // checkRoot проверяет, запущен ли установщик от имени root
@@ -96,28 +131,6 @@ func checkCommands() error {
 	return nil
 }
 
-// confirmAction запрашивает у пользователя подтверждение действия
-func confirmAction(prompt string) bool {
-	reader := bufio.NewReader(os.Stdin)
-	for {
-		fmt.Printf("%s (y/N): ", prompt)
-		response, err := reader.ReadString('\n')
-		if err != nil {
-			log.Printf("Ошибка чтения ввода: %v\n", err)
-			return false
-		}
-		response = strings.ToLower(strings.TrimSpace(response))
-		switch response {
-		case "y", "yes":
-			return true
-		case "n", "no", "":
-			return false
-		default:
-			fmt.Println("Пожалуйста, ответьте 'y' или 'n'.")
-		}
-	}
-}
-
 // validateDisk проверяет существование диска
 func validateDisk(disk string) bool {
 	if _, err := os.Stat(disk); os.IsNotExist(err) {
@@ -137,21 +150,21 @@ func prepareDisk(disk string, rootFileSystem string, typeBoot string) error {
 		commands = [][]string{
 			{"wipefs", "--all", disk},
 			{"parted", "-s", disk, "mklabel", "gpt"},
-			{"parted", "-s", disk, "mkpart", "primary", "1MiB", "3MiB"},                    // BIOS Boot Partition (2 МиБ)
-			{"parted", "-s", disk, "set", "1", "bios_grub", "on"},                          // BIOS Boot Partition
-			{"parted", "-s", disk, "mkpart", "primary", "fat32", "3MiB", "1003MiB"},        // EFI раздел (1 ГБ)
-			{"parted", "-s", disk, "set", "2", "boot", "on"},                               // EFI раздел
-			{"parted", "-s", disk, "mkpart", "primary", "ext4", "1003MiB", "3003MiB"},      // Boot раздел (2 ГБ)
-			{"parted", "-s", disk, "mkpart", "primary", rootFileSystem, "3003MiB", "100%"}, // Root раздел
+			{"parted", "-s", disk, "mkpart", "primary", "1MiB", "3MiB"},                        // BIOS Boot Partition (2 МиБ)
+			{"parted", "-s", disk, "set", "1", "bios_grub", "on"},                              // BIOS Boot Partition
+			{"parted", "-s", disk, "mkpart", "primary", "fat32", "3MiB", "1003MiB"},            // EFI раздел (1 ГБ)
+			{"parted", "-s", disk, "set", "2", "boot", "on"},                                   // EFI раздел
+			{"parted", "-s", disk, "mkpart", "primary", "ext4", "1003MiB", "3003MiB"},          // Boot раздел (2 ГБ)
+			{"parted", "-s", disk, "mkpart", "primary", rootFileSystem, "3003MiB", "20000MiB"}, // Root раздел
 		}
 	} else if typeBoot == "UEFI" {
 		commands = [][]string{
 			{"wipefs", "--all", disk},
 			{"parted", "-s", disk, "mklabel", "gpt"},
-			{"parted", "-s", disk, "mkpart", "primary", "fat32", "1MiB", "601MiB"},         // EFI раздел (600 МБ)
-			{"parted", "-s", disk, "set", "1", "boot", "on"},                               // EFI раздел
-			{"parted", "-s", disk, "mkpart", "primary", "ext4", "601MiB", "2601MiB"},       // Boot раздел (2 ГБ)
-			{"parted", "-s", disk, "mkpart", "primary", rootFileSystem, "2601MiB", "100%"}, // Root раздел
+			{"parted", "-s", disk, "mkpart", "primary", "fat32", "1MiB", "601MiB"},             // EFI раздел (600 МБ)
+			{"parted", "-s", disk, "set", "1", "boot", "on"},                                   // EFI раздел
+			{"parted", "-s", disk, "mkpart", "primary", "ext4", "601MiB", "2601MiB"},           // Boot раздел (2 ГБ)
+			{"parted", "-s", disk, "mkpart", "primary", rootFileSystem, "2601MiB", "20000MiB"}, // Root раздел
 		}
 	} else {
 		return fmt.Errorf("неизвестный тип загрузки: %s", typeBoot)
@@ -218,7 +231,34 @@ func prepareDisk(disk string, rootFileSystem string, typeBoot string) error {
 		}
 	}
 
+	cmd := exec.Command("lsblk", "-ln", "-o", "NAME", disk)
+	output, err := cmd.Output()
+
+	if err != nil {
+		return fmt.Errorf("ошибка получения списка разделов: %v", err)
+	}
+	existingPartitions := strings.Split(strings.TrimSpace(string(output)), "\n")
+	tempPartitionNumber := len(existingPartitions) + 1
+	tempPartition := fmt.Sprintf("%s%d", disk, tempPartitionNumber)
+
+	// Создание временного раздела
+	tempCommands := [][]string{
+		{"parted", "-s", disk, "mkpart", "primary", "ext4", "20000MiB", "30000MiB"},
+		{"mkfs.ext4", tempPartition},
+		{"mkdir", "-p", "/mnt/temp_containers"},
+		{"mount", tempPartition, "/mnt/temp_containers"},
+	}
+
+	for _, args := range tempCommands {
+		cmd := exec.Command(args[0], args[1:]...)
+		cmd.Stdout = os.Stdout
+		cmd.Stderr = os.Stderr
+		if err := cmd.Run(); err != nil {
+			return fmt.Errorf("ошибка выполнения команды %s: %v", args[0], err)
+		}
+	}
 	log.Printf("Диск %s успешно подготовлен.\n", disk)
+
 	return nil
 }
 
@@ -259,13 +299,13 @@ func installToFilesystem(image string, disk string, typeBoot string, rootFileSys
 	mountBtrfsHome := "/mnt/btrfs/home"
 	mountPointBoot := "/mnt/target/boot"
 	efiMountPoint := "/mnt/target/boot/efi"
-	var installCmd string
-
-	// Получаем текущую рабочую директорию
-	currentDir, err := os.Getwd()
-	if err != nil {
-		log.Fatalf("Ошибка получения текущего рабочего каталога: %v", err)
-	}
+	//var installCmd string
+	//
+	//// Получаем текущую рабочую директорию
+	//currentDir, err := os.Getwd()
+	//if err != nil {
+	//	log.Fatalf("Ошибка получения текущего рабочего каталога: %v", err)
+	//}
 
 	// Получаем именованные разделы
 	partitions, err := getNamedPartitions(disk, typeBoot)
@@ -293,35 +333,35 @@ func installToFilesystem(image string, disk string, typeBoot string, rootFileSys
 	}
 
 	// Выполняем установку с использованием bootc
-	if typeBoot == "UEFI" {
-		installCmd = fmt.Sprintf(
-			"[ -f /usr/libexec/init-ostree.sh ] && /usr/libexec/init-ostree.sh; bootc install to-filesystem --skip-fetch-check --disable-selinux %s",
-			"/mnt/target",
-		)
-	} else {
-		installCmd = fmt.Sprintf(
-			"[ -f /usr/libexec/init-ostree.sh ] && /usr/libexec/init-ostree.sh; bootc install to-filesystem --skip-fetch-check --generic-image --disable-selinux %s",
-			"/mnt/target",
-		)
-	}
+	//if typeBoot == "UEFI" {
+	//	installCmd = fmt.Sprintf(
+	//		"[ -f /usr/libexec/init-ostree.sh ] && /usr/libexec/init-ostree.sh; bootc install to-filesystem --skip-fetch-check --disable-selinux %s",
+	//		"/mnt/target",
+	//	)
+	//} else {
+	//	installCmd = fmt.Sprintf(
+	//		"[ -f /usr/libexec/init-ostree.sh ] && /usr/libexec/init-ostree.sh; bootc install to-filesystem --skip-fetch-check --generic-image --disable-selinux %s",
+	//		"/mnt/target",
+	//	)
+	//}
 
-	cmd := exec.Command("sudo", "podman", "run", "--rm", "--privileged", "--pid=host",
-		"--security-opt", "label=type:unconfined_t",
-		"-v", "/var/lib/containers:/var/lib/containers",
-		"-v", "/dev:/dev",
-		"-v", "/mnt/target:/mnt/target",
-		"-v", fmt.Sprintf("%s:/output", currentDir),
-		"--security-opt", "label=disable",
-		image,
-		"sh", "-c", installCmd,
-	)
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
+	//cmd := exec.Command("sudo", "podman", "run", "--rm", "--root /mnt/temp_containers", "--privileged", "--pid=host",
+	//	"--security-opt", "label=type:unconfined_t",
+	//	"-v", "/mnt/temp_containers:/var/lib/containers",
+	//	"-v", "/dev:/dev",
+	//	"-v", "/mnt/target:/mnt/target",
+	//	"-v", fmt.Sprintf("%s:/output", currentDir),
+	//	"--security-opt", "label=disable",
+	//	image,
+	//	"sh", "-c", installCmd,
+	//)
+	//cmd.Stdout = os.Stdout
+	//cmd.Stderr = os.Stderr
 
 	log.Println("Выполняется установка...")
-	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("ошибка выполнения bootc: %v", err)
-	}
+	//if err := cmd.Run(); err != nil {
+	//	return fmt.Errorf("ошибка выполнения bootc: %v", err)
+	//}
 
 	unmountDisk(efiMountPoint)
 	unmountDisk(mountPointBoot)
