@@ -295,13 +295,13 @@ func installToFilesystem(image string, disk string, typeBoot string, rootFileSys
 	mountBtrfsHome := "/mnt/btrfs/home"
 	mountPointBoot := "/mnt/target/boot"
 	efiMountPoint := "/mnt/target/boot/efi"
-	//var installCmd string
-	//
-	//// Получаем текущую рабочую директорию
-	//currentDir, err := os.Getwd()
-	//if err != nil {
-	//	log.Fatalf("Ошибка получения текущего рабочего каталога: %v", err)
-	//}
+	var installCmd string
+
+	// Получаем текущую рабочую директорию
+	currentDir, err := os.Getwd()
+	if err != nil {
+		log.Fatalf("Ошибка получения текущего рабочего каталога: %v", err)
+	}
 
 	// Получаем именованные разделы
 	partitions, err := getNamedPartitions(disk, typeBoot)
@@ -329,35 +329,35 @@ func installToFilesystem(image string, disk string, typeBoot string, rootFileSys
 	}
 
 	// Выполняем установку с использованием bootc
-	//if typeBoot == "UEFI" {
-	//	installCmd = fmt.Sprintf(
-	//		"[ -f /usr/libexec/init-ostree.sh ] && /usr/libexec/init-ostree.sh; bootc install to-filesystem --skip-fetch-check --disable-selinux %s",
-	//		"/mnt/target",
-	//	)
-	//} else {
-	//	installCmd = fmt.Sprintf(
-	//		"[ -f /usr/libexec/init-ostree.sh ] && /usr/libexec/init-ostree.sh; bootc install to-filesystem --skip-fetch-check --generic-image --disable-selinux %s",
-	//		"/mnt/target",
-	//	)
-	//}
+	if typeBoot == "UEFI" {
+		installCmd = fmt.Sprintf(
+			"[ -f /usr/libexec/init-ostree.sh ] && /usr/libexec/init-ostree.sh; bootc install to-filesystem --skip-fetch-check --disable-selinux %s",
+			"/mnt/target",
+		)
+	} else {
+		installCmd = fmt.Sprintf(
+			"[ -f /usr/libexec/init-ostree.sh ] && /usr/libexec/init-ostree.sh; bootc install to-filesystem --skip-fetch-check --generic-image --disable-selinux %s",
+			"/mnt/target",
+		)
+	}
 
-	//cmd := exec.Command("sudo", "podman", "run", "--rm", "--root /mnt/temp_containers", "--privileged", "--pid=host",
-	//	"--security-opt", "label=type:unconfined_t",
-	//	"-v", "/mnt/temp_containers:/var/lib/containers",
-	//	"-v", "/dev:/dev",
-	//	"-v", "/mnt/target:/mnt/target",
-	//	"-v", fmt.Sprintf("%s:/output", currentDir),
-	//	"--security-opt", "label=disable",
-	//	image,
-	//	"sh", "-c", installCmd,
-	//)
-	//cmd.Stdout = os.Stdout
-	//cmd.Stderr = os.Stderr
+	cmd := exec.Command("sudo", "podman", "run", "--rm", "--root /mnt/temp_containers", "--privileged", "--pid=host",
+		"--security-opt", "label=type:unconfined_t",
+		"-v", "/mnt/temp_containers:/var/lib/containers",
+		"-v", "/dev:/dev",
+		"-v", "/mnt/target:/mnt/target",
+		"-v", fmt.Sprintf("%s:/output", currentDir),
+		"--security-opt", "label=disable",
+		image,
+		"sh", "-c", installCmd,
+	)
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
 
 	log.Println("Выполняется установка...")
-	//if err := cmd.Run(); err != nil {
-	//	return fmt.Errorf("ошибка выполнения bootc: %v", err)
-	//}
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("ошибка выполнения bootc: %v", err)
+	}
 
 	unmountDisk(efiMountPoint)
 	unmountDisk(mountPointBoot)
