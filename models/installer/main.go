@@ -75,7 +75,7 @@ func Run() {
 }
 
 func cleanupTemporaryPartition(partitions map[string]PartitionInfo, diskResult string) error {
-	log.Println("Перенос данных из временного раздела в root-раздел...")
+	log.Println("Удаление временного раздела и расширение root-раздела...")
 
 	// Размонтируем временный раздел
 	log.Printf("Размонтирование временного раздела %s...\n", partitions["temp"].Path)
