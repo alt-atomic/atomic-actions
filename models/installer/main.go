@@ -243,7 +243,7 @@ func prepareDisk(disk string, rootFileSystem string, typeBoot string) error {
 
 	// Создание временного раздела
 	tempCommands := [][]string{
-		{"parted", "-s", disk, "mkpart", "primary", "ext4", "20000MiB", "30000MiB"},
+		{"parted", "-s", disk, "mkpart", "primary", "ext4", "20000MiB", "24000MiB"},
 		{"mkfs.ext4", tempPartition},
 		{"mkdir", "-p", "/mnt/temp_containers"},
 		{"mount", tempPartition, "/mnt/temp_containers"},
