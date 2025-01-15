@@ -377,6 +377,7 @@ func installToFilesystem(image string, disk string, typeBoot string, rootFileSys
 	mountBtrfsHome := "/mnt/btrfs/home"
 	mountPointBoot := "/mnt/target/boot"
 	efiMountPoint := "/mnt/target/boot/efi"
+	var installCmd string
 
 	// Получаем именованные разделы
 	partitions, err := getNamedPartitions(disk, typeBoot)
@@ -404,30 +405,30 @@ func installToFilesystem(image string, disk string, typeBoot string, rootFileSys
 	}
 
 	// Выполняем установку с использованием bootc
-	//if typeBoot == "UEFI" {
-	//	installCmd = fmt.Sprintf(
-	//		"[ -f /usr/libexec/init-ostree.sh ] && /usr/libexec/init-ostree.sh; bootc install to-filesystem --skip-fetch-check --disable-selinux %s",
-	//		"/mnt/target",
-	//	)
-	//} else {
-	//	installCmd = fmt.Sprintf(
-	//		"[ -f /usr/libexec/init-ostree.sh ] && /usr/libexec/init-ostree.sh; bootc install to-filesystem --skip-fetch-check --generic-image --disable-selinux %s",
-	//		"/mnt/target",
-	//	)
-	//}
+	if typeBoot == "UEFI" {
+		installCmd = fmt.Sprintf(
+			"[ -f /usr/libexec/init-ostree.sh ] && /usr/libexec/init-ostree.sh; bootc install to-filesystem --skip-fetch-check --disable-selinux %s",
+			"/mnt/target",
+		)
+	} else {
+		installCmd = fmt.Sprintf(
+			"[ -f /usr/libexec/init-ostree.sh ] && /usr/libexec/init-ostree.sh; bootc install to-filesystem --skip-fetch-check --generic-image --disable-selinux %s",
+			"/mnt/target",
+		)
+	}
 
-	//cmd := exec.Command("sudo", "podman", "run", "--rm", "--privileged", "--pid=host",
-	//	"--security-opt", "label=type:unconfined_t",
-	//	"-v", "/var/lib/containers:/var/lib/containers",
-	//	"-v", "/dev:/dev",
-	//	"-v", "/mnt/target:/mnt/target",
-	//	"--security-opt", "label=disable",
-	//	image,
-	//	"sh", "-c", installCmd,
-	//)
-	//
-	//cmd.Stdout = os.Stdout
-	//cmd.Stderr = os.Stderr
+	cmd := exec.Command("sudo", "podman", "run", "--rm", "--privileged", "--pid=host",
+		"--security-opt", "label=type:unconfined_t",
+		"-v", "/var/lib/containers:/var/lib/containers",
+		"-v", "/dev:/dev",
+		"-v", "/mnt/target:/mnt/target",
+		"--security-opt", "label=disable",
+		image,
+		"sh", "-c", installCmd,
+	)
+
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
 
 	log.Println("Выполняется установка...")
 	//if err := cmd.Run(); err != nil {
@@ -451,25 +452,25 @@ func installToFilesystem(image string, disk string, typeBoot string, rootFileSys
 			return fmt.Errorf("ошибка монтирования подтома @home: %v", err)
 		}
 
-		//ostreeDeployPath, err := findOstreeDeployPath(mountPoint)
-		//if err != nil {
-		//	return fmt.Errorf("ошибка поиска ostree deploy пути: %v", err)
-		//}
-		//
-		//// Копируем содержимое /var в подтом @var
-		//if err := copyWithRsync(fmt.Sprintf("%s/var/", ostreeDeployPath), mountBtrfsVar); err != nil {
-		//	return fmt.Errorf("ошибка копирования /var в @var: %v", err)
-		//}
-		//
-		//// Копируем содержимое /home в подтом @home
-		//if err := copyWithRsync(fmt.Sprintf("%s/home/", ostreeDeployPath), mountBtrfsHome); err != nil {
-		//	return fmt.Errorf("ошибка копирования /home в @home: %v", err)
-		//}
-		//
-		//// Очищаем содержимое /var, но оставляем папку
-		//if err := clearDirectory(fmt.Sprintf("%s/var", ostreeDeployPath)); err != nil {
-		//	return fmt.Errorf("ошибка очистки содержимого /var: %v", err)
-		//}
+		ostreeDeployPath, err := findOstreeDeployPath(mountPoint)
+		if err != nil {
+			return fmt.Errorf("ошибка поиска ostree deploy пути: %v", err)
+		}
+
+		// Копируем содержимое /var в подтом @var
+		if err := copyWithRsync(fmt.Sprintf("%s/var/", ostreeDeployPath), mountBtrfsVar); err != nil {
+			return fmt.Errorf("ошибка копирования /var в @var: %v", err)
+		}
+
+		// Копируем содержимое /home в подтом @home
+		if err := copyWithRsync(fmt.Sprintf("%s/home/", ostreeDeployPath), mountBtrfsHome); err != nil {
+			return fmt.Errorf("ошибка копирования /home в @home: %v", err)
+		}
+
+		// Очищаем содержимое /var, но оставляем папку
+		if err := clearDirectory(fmt.Sprintf("%s/var", ostreeDeployPath)); err != nil {
+			return fmt.Errorf("ошибка очистки содержимого /var: %v", err)
+		}
 	} else {
 		if err := mountDisk(partitions["root"].Path, mountPoint, "rw"); err != nil {
 			return fmt.Errorf("ошибка повторного монтирования root раздела: %v", err)
@@ -485,10 +486,10 @@ func installToFilesystem(image string, disk string, typeBoot string, rootFileSys
 	}
 
 	// Генерация fstab
-	//log.Println("Генерация fstab...")
-	//if err := generateFstab(mountPoint, partitions, rootFileSystem); err != nil {
-	//	return fmt.Errorf("ошибка генерации fstab: %v", err)
-	//}
+	log.Println("Генерация fstab...")
+	if err := generateFstab(mountPoint, partitions, rootFileSystem); err != nil {
+		return fmt.Errorf("ошибка генерации fstab: %v", err)
+	}
 
 	unmountDisk(efiMountPoint)
 	unmountDisk(mountPointBoot)
@@ -545,7 +546,7 @@ func findOstreeDeployPath(mountPoint string) (string, error) {
 	return "", fmt.Errorf("не найдена папка, в %s", deployPath)
 }
 
-func generateFstab(mountPoint string, partitions map[string]string, rootFileSystem string) error {
+func generateFstab(mountPoint string, partitions map[string]PartitionInfo, rootFileSystem string) error {
 	ostreeDeployPath, err := findOstreeDeployPath(mountPoint)
 	if err != nil {
 		return fmt.Errorf("ошибка поиска ostree deploy пути: %v", err)
@@ -559,20 +560,20 @@ func generateFstab(mountPoint string, partitions map[string]string, rootFileSyst
 	if rootFileSystem == "btrfs" {
 		fstabContent += fmt.Sprintf(
 			"UUID=%s / btrfs subvol=@,compress=zstd:1,x-systemd.device-timeout=0 0 0\n",
-			getUUID(partitions["root"]),
+			getUUID(partitions["root"].Path),
 		)
 		fstabContent += fmt.Sprintf(
 			"UUID=%s /home btrfs subvol=@home,compress=zstd:1,x-systemd.device-timeout=0 0 0\n",
-			getUUID(partitions["root"]),
+			getUUID(partitions["root"].Path),
 		)
 		fstabContent += fmt.Sprintf(
 			"UUID=%s /var btrfs subvol=@var,compress=zstd:1,x-systemd.device-timeout=0 0 0\n",
-			getUUID(partitions["root"]),
+			getUUID(partitions["root"].Path),
 		)
 	} else if rootFileSystem == "ext4" {
 		fstabContent += fmt.Sprintf(
 			"UUID=%s / ext4 defaults 1 1\n",
-			getUUID(partitions["root"]),
+			getUUID(partitions["root"].Path),
 		)
 	} else {
 		return fmt.Errorf("неизвестная файловая система: %s", rootFileSystem)
@@ -580,11 +581,11 @@ func generateFstab(mountPoint string, partitions map[string]string, rootFileSyst
 
 	fstabContent += fmt.Sprintf(
 		"UUID=%s /boot ext4 defaults 1 2\n",
-		getUUID(partitions["boot"]),
+		getUUID(partitions["boot"].Path),
 	)
 	fstabContent += fmt.Sprintf(
 		"UUID=%s /boot/efi vfat umask=0077,shortname=winnt 0 2\n",
-		getUUID(partitions["efi"]),
+		getUUID(partitions["efi"].Path),
 	)
 
 	file, err := os.Create(fstabPath)
