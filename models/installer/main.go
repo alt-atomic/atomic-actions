@@ -231,22 +231,12 @@ func prepareDisk(disk string, rootFileSystem string, typeBoot string) error {
 		}
 	}
 
-	cmd := exec.Command("lsblk", "-ln", "-o", "NAME", disk)
-	output, err := cmd.Output()
-
-	if err != nil {
-		return fmt.Errorf("ошибка получения списка разделов: %v", err)
-	}
-	existingPartitions := strings.Split(strings.TrimSpace(string(output)), "\n")
-	tempPartitionNumber := len(existingPartitions) + 1
-	tempPartition := fmt.Sprintf("%s%d", disk, tempPartitionNumber)
-
 	// Создание временного раздела
 	tempCommands := [][]string{
 		{"parted", "-s", disk, "mkpart", "primary", "ext4", "20000MiB", "24000MiB"},
-		{"mkfs.ext4", tempPartition},
+		{"mkfs.ext4", partitions["temp"]},
 		{"mkdir", "-p", "/mnt/temp_containers"},
-		{"mount", tempPartition, "/mnt/temp_containers"},
+		{"mount", partitions["temp"], "/mnt/temp_containers"},
 	}
 
 	for _, args := range tempCommands {
@@ -554,10 +544,12 @@ func getNamedPartitions(disk string, typeBoot string) (map[string]string, error)
 		namedPartitions["efi"] = partitions[1]  // EFI Partition
 		namedPartitions["boot"] = partitions[2] // Boot Partition
 		namedPartitions["root"] = partitions[3] // Root Partition
+		namedPartitions["temp"] = partitions[4] // Root Partition
 	} else if typeBoot == "UEFI" {
 		namedPartitions["efi"] = partitions[0]  // EFI Partition
 		namedPartitions["boot"] = partitions[1] // Boot Partition
 		namedPartitions["root"] = partitions[2] // Root Partition
+		namedPartitions["temp"] = partitions[3] // Root Partition
 	}
 
 	return namedPartitions, nil
