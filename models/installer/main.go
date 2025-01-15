@@ -402,25 +402,25 @@ func installToFilesystem(image string, disk string, typeBoot string, rootFileSys
 			return fmt.Errorf("ошибка монтирования подтома @home: %v", err)
 		}
 
-		ostreeDeployPath, err := findOstreeDeployPath(mountPoint)
-		if err != nil {
-			return fmt.Errorf("ошибка поиска ostree deploy пути: %v", err)
-		}
-
-		// Копируем содержимое /var в подтом @var
-		if err := copyWithRsync(fmt.Sprintf("%s/var/", ostreeDeployPath), mountBtrfsVar); err != nil {
-			return fmt.Errorf("ошибка копирования /var в @var: %v", err)
-		}
-
-		// Копируем содержимое /home в подтом @home
-		if err := copyWithRsync(fmt.Sprintf("%s/home/", ostreeDeployPath), mountBtrfsHome); err != nil {
-			return fmt.Errorf("ошибка копирования /home в @home: %v", err)
-		}
-
-		// Очищаем содержимое /var, но оставляем папку
-		if err := clearDirectory(fmt.Sprintf("%s/var", ostreeDeployPath)); err != nil {
-			return fmt.Errorf("ошибка очистки содержимого /var: %v", err)
-		}
+		//ostreeDeployPath, err := findOstreeDeployPath(mountPoint)
+		//if err != nil {
+		//	return fmt.Errorf("ошибка поиска ostree deploy пути: %v", err)
+		//}
+		//
+		//// Копируем содержимое /var в подтом @var
+		//if err := copyWithRsync(fmt.Sprintf("%s/var/", ostreeDeployPath), mountBtrfsVar); err != nil {
+		//	return fmt.Errorf("ошибка копирования /var в @var: %v", err)
+		//}
+		//
+		//// Копируем содержимое /home в подтом @home
+		//if err := copyWithRsync(fmt.Sprintf("%s/home/", ostreeDeployPath), mountBtrfsHome); err != nil {
+		//	return fmt.Errorf("ошибка копирования /home в @home: %v", err)
+		//}
+		//
+		//// Очищаем содержимое /var, но оставляем папку
+		//if err := clearDirectory(fmt.Sprintf("%s/var", ostreeDeployPath)); err != nil {
+		//	return fmt.Errorf("ошибка очистки содержимого /var: %v", err)
+		//}
 	} else {
 		if err := mountDisk(partitions["root"], mountPoint, "rw"); err != nil {
 			return fmt.Errorf("ошибка повторного монтирования root раздела: %v", err)
