@@ -140,7 +140,7 @@ func cleanupTemporaryPartition(partitions map[string]string, diskResult string) 
 		}
 	} else if fsType == "ext4" {
 		// Для ext4 используем resize2fs
-		cmd = exec.Command("e2fsck", "-f", rootPartition)
+		cmd = exec.Command("e2fsck", "-f", "-y", rootPartition)
 		cmd.Stdout = os.Stdout
 		cmd.Stderr = os.Stderr
 		log.Printf("Проверка и исправление файловой системы ext4 на разделе %s...\n", rootPartition)
