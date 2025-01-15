@@ -57,11 +57,6 @@ func Run() {
 		log.Fatalf("Ошибка подготовки диска: %v\n", err)
 	}
 
-	// Убедимся, что символическая ссылка настроена
-	if err := setupSymbolicLink(); err != nil {
-		log.Fatalf("Ошибка настройки символической ссылки: %v\n", err)
-	}
-
 	// Шаг 4: Установка с использованием bootc
 	if err := installToFilesystem(imageResult, diskResult, typeBoot, typeFileSystem); err != nil {
 		log.Fatalf("Ошибка установки: %v\n", err)
@@ -91,7 +86,7 @@ func cleanupTemporaryPartition(partitions map[string]string, diskResult string) 
 	tempPartitionNumber := strings.TrimPrefix(tempPartition, diskResult)
 
 	commands := [][]string{
-		{"umount", "/mnt/temp_containers"},                                      // Размонтирование временного раздела
+		{"umount", "/var/lib/containers"},                                       // Размонтирование временного раздела
 		{"parted", "-s", diskResult, "rm", tempPartitionNumber},                 // Удаление временного раздела
 		{"parted", "-s", diskResult, "resizepart", rootPartitionNumber, "100%"}, // Расширение root-раздела
 		{"resize2fs", rootPartition},                                            // Обновление файловой системы root
@@ -173,7 +168,7 @@ func unmount(path string) error {
 
 // prepareDisk выполняет подготовку диска
 func prepareDisk(disk string, rootFileSystem string, typeBoot string) error {
-	paths := []string{"/mnt/target/boot/efi", "/mnt/target/boot", "/mnt/temp_containers", "/mnt/target"}
+	paths := []string{"/mnt/target/boot/efi", "/mnt/target/boot", "/var/lib/containers", "/mnt/target"}
 
 	for _, path := range paths {
 		_ = unmount(path)
@@ -279,8 +274,8 @@ func prepareDisk(disk string, rootFileSystem string, typeBoot string) error {
 
 	// Создание временного раздела
 	tempCommands := [][]string{
-		{"mkdir", "-p", "/mnt/temp_containers"},
-		{"mount", partitions["temp"], "/mnt/temp_containers"},
+		{"mkdir", "-p", "/var/lib/containers"},
+		{"mount", partitions["temp"], "/var/lib/containers"},
 	}
 
 	for _, args := range tempCommands {
@@ -323,46 +318,6 @@ func createBtrfsSubVolumes(rootPartition string) error {
 		}
 	}
 
-	return nil
-}
-
-func setupSymbolicLink() error {
-	log.Println("Настройка символической ссылки для /var/lib/containers...")
-
-	source := "/var/lib/containers"
-	target := "/mnt/temp_containers"
-
-	// Если целевая директория не существует, создаём её
-	if _, err := os.Stat(target); os.IsNotExist(err) {
-		log.Printf("Создание директории: %s\n", target)
-		if err := os.MkdirAll(target, 0755); err != nil {
-			return fmt.Errorf("ошибка создания директории %s: %v", target, err)
-		}
-	}
-
-	// Проверяем, является ли `source` символической ссылкой
-	if info, err := os.Lstat(source); err == nil {
-		if info.Mode()&os.ModeSymlink != 0 {
-			log.Printf("Удаление существующей символической ссылки: %s\n", source)
-			if err := os.Remove(source); err != nil {
-				return fmt.Errorf("ошибка удаления символической ссылки %s: %v", source, err)
-			}
-		} else {
-			backup := source + ".bak"
-			log.Printf("Переименование %s в %s\n", source, backup)
-			if err := os.Rename(source, backup); err != nil {
-				return fmt.Errorf("ошибка переименования %s: %v", source, err)
-			}
-		}
-	}
-
-	// Создание символической ссылки
-	log.Printf("Создание символической ссылки: %s -> %s\n", source, target)
-	if err := os.Symlink(target, source); err != nil {
-		return fmt.Errorf("ошибка создания символической ссылки %s -> %s: %v", source, target, err)
-	}
-
-	log.Println("Символическая ссылка успешно настроена.")
 	return nil
 }
 
