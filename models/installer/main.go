@@ -156,7 +156,7 @@ func prepareDisk(disk string, rootFileSystem string, typeBoot string) error {
 			{"parted", "-s", disk, "set", "2", "boot", "on"},                                   // EFI раздел
 			{"parted", "-s", disk, "mkpart", "primary", "ext4", "1003MiB", "3003MiB"},          // Boot раздел (2 ГБ)
 			{"parted", "-s", disk, "mkpart", "primary", rootFileSystem, "3003MiB", "20000MiB"}, // Root раздел
-			{"parted", "-s", disk, "mkpart", "primary", "ext4", "20000MiB", "24000MiB"},        // Временный раздел
+			{"parted", "-s", disk, "mkpart", "primary", "ext4", "20000MiB", "30000MiB"},        // Временный раздел
 		}
 	} else if typeBoot == "UEFI" {
 		commands = [][]string{
@@ -166,7 +166,7 @@ func prepareDisk(disk string, rootFileSystem string, typeBoot string) error {
 			{"parted", "-s", disk, "set", "1", "boot", "on"},                                   // EFI раздел
 			{"parted", "-s", disk, "mkpart", "primary", "ext4", "601MiB", "2601MiB"},           // Boot раздел (2 ГБ)
 			{"parted", "-s", disk, "mkpart", "primary", rootFileSystem, "2601MiB", "20000MiB"}, // Root раздел
-			{"parted", "-s", disk, "mkpart", "primary", "ext4", "20000MiB", "24000MiB"},        // Временный раздел
+			{"parted", "-s", disk, "mkpart", "primary", "ext4", "20000MiB", "30000MiB"},        // Временный раздел
 		}
 	} else {
 		return fmt.Errorf("неизвестный тип загрузки: %s", typeBoot)
