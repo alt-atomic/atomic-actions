@@ -67,29 +67,25 @@ func Run() {
 		log.Fatalf("Ошибка получения именованных разделов: %v", err)
 	}
 
-	if err := cleanupTemporaryPartition(partitions); err != nil {
+	if err := cleanupTemporaryPartition(partitions, diskResult); err != nil {
 		log.Fatalf("Ошибка очистки временного раздела: %v", err)
 	}
 
 	log.Println("Установка завершена успешно!")
 }
 
-func cleanupTemporaryPartition(partitions map[string]string) error {
+func cleanupTemporaryPartition(partitions map[string]PartitionInfo, diskResult string) error {
 	log.Println("Перенос данных из временного раздела в root-раздел...")
 
-	// Получаем разделы
-	rootPartition := partitions["root"]
-	tempPartition := partitions["temp"]
-
 	// Размонтируем временный раздел
-	log.Printf("Размонтирование временного раздела %s...\n", tempPartition)
+	log.Printf("Размонтирование временного раздела %s...\n", partitions["temp"].Path)
 	if err := unmount("/var/lib/containers"); err != nil {
 		return fmt.Errorf("ошибка размонтирования временного раздела: %v", err)
 	}
 
 	// Удаляем временный раздел
-	log.Printf("Удаление временного раздела %s...\n", tempPartition)
-	cmd := exec.Command("parted", "-s", tempPartition, "rm", "1")
+	log.Printf("Удаление временного раздела %s...\n", partitions["temp"].Path)
+	cmd := exec.Command("parted", "-s", diskResult, "rm", partitions["temp"].Number)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	if err := cmd.Run(); err != nil {
@@ -97,8 +93,8 @@ func cleanupTemporaryPartition(partitions map[string]string) error {
 	}
 
 	// Расширяем root-раздел
-	log.Printf("Расширение root-раздела %s до 100%%...\n", rootPartition)
-	cmd = exec.Command("parted", "-s", rootPartition, "resizepart", "100%")
+	log.Printf("Расширение root-раздела %s до 100%%...\n", partitions["root"].Path)
+	cmd = exec.Command("parted", "-s", diskResult, "resizepart", partitions["root"].Number, "100%")
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	if err := cmd.Run(); err != nil {
@@ -106,8 +102,8 @@ func cleanupTemporaryPartition(partitions map[string]string) error {
 	}
 
 	// Проверяем тип файловой системы root-раздела
-	log.Printf("Проверка типа файловой системы раздела %s...\n", rootPartition)
-	cmd = exec.Command("blkid", "-o", "value", "-s", "TYPE", rootPartition)
+	log.Printf("Проверка типа файловой системы раздела %s...\n", partitions["root"].Path)
+	cmd = exec.Command("blkid", "-o", "value", "-s", "TYPE", partitions["root"].Path)
 	output, err := cmd.Output()
 	if err != nil {
 		return fmt.Errorf("ошибка проверки типа файловой системы: %v", err)
@@ -119,10 +115,10 @@ func cleanupTemporaryPartition(partitions map[string]string) error {
 	if fsType == "btrfs" {
 		// Для btrfs используем btrfs filesystem resize
 		mountPoint := "/mnt/btrfs-root"
-		log.Printf("Изменение размера файловой системы btrfs на разделе %s...\n", rootPartition)
+		log.Printf("Изменение размера файловой системы btrfs на разделе %s...\n", partitions["root"].Path)
 
 		// Монтируем раздел
-		if err := mountDisk(rootPartition, mountPoint, ""); err != nil {
+		if err := mountDisk(partitions["root"].Path, mountPoint, ""); err != nil {
 			return fmt.Errorf("ошибка монтирования btrfs-раздела: %v", err)
 		}
 		defer unmountDisk(mountPoint) // Размонтируем после завершения
@@ -136,16 +132,16 @@ func cleanupTemporaryPartition(partitions map[string]string) error {
 		}
 	} else if fsType == "ext4" {
 		// Для ext4 используем resize2fs
-		cmd = exec.Command("e2fsck", "-f", "-y", rootPartition)
+		cmd = exec.Command("e2fsck", "-f", "-y", partitions["root"].Path)
 		cmd.Stdout = os.Stdout
 		cmd.Stderr = os.Stderr
-		log.Printf("Проверка и исправление файловой системы ext4 на разделе %s...\n", rootPartition)
+		log.Printf("Проверка и исправление файловой системы ext4 на разделе %s...\n", partitions["root"].Path)
 		if err := cmd.Run(); err != nil {
 			return fmt.Errorf("ошибка проверки файловой системы ext4: %v", err)
 		}
 
-		log.Printf("Изменение размера файловой системы ext4 на разделе %s...\n", rootPartition)
-		cmd = exec.Command("resize2fs", rootPartition)
+		log.Printf("Изменение размера файловой системы ext4 на разделе %s...\n", partitions["root"].Path)
+		cmd = exec.Command("resize2fs", partitions["root"].Path)
 		cmd.Stdout = os.Stdout
 		cmd.Stderr = os.Stderr
 		if err := cmd.Run(); err != nil {
@@ -286,21 +282,21 @@ func prepareDisk(disk string, rootFileSystem string, typeBoot string) error {
 		cmd  string
 		args []string
 	}{
-		{"mkfs.vfat", []string{"-F32", partitions["efi"]}}, // Форматирование EFI раздела
-		{"mkfs.ext4", []string{partitions["boot"]}},        // Форматирование boot раздела
+		{"mkfs.vfat", []string{"-F32", partitions["efi"].Path}}, // Форматирование EFI раздела
+		{"mkfs.ext4", []string{partitions["boot"].Path}},        // Форматирование boot раздела
 	}
 
 	if rootFileSystem == "ext4" {
 		formats = append(formats, struct {
 			cmd  string
 			args []string
-		}{"mkfs.ext4", []string{partitions["root"]}})
+		}{"mkfs.ext4", []string{partitions["root"].Path}})
 
 	} else if rootFileSystem == "btrfs" {
 		formats = append(formats, struct {
 			cmd  string
 			args []string
-		}{"mkfs.btrfs", []string{"-f", partitions["root"]}})
+		}{"mkfs.btrfs", []string{"-f", partitions["root"].Path}})
 	} else {
 		return fmt.Errorf("неизвестная файловая система: %s", rootFileSystem)
 	}
@@ -308,7 +304,7 @@ func prepareDisk(disk string, rootFileSystem string, typeBoot string) error {
 	formats = append(formats, struct {
 		cmd  string
 		args []string
-	}{"mkfs.ext4", []string{partitions["temp"]}})
+	}{"mkfs.ext4", []string{partitions["temp"].Path}})
 
 	for _, format := range formats {
 		cmd := exec.Command(format.cmd, format.args...)
@@ -320,7 +316,7 @@ func prepareDisk(disk string, rootFileSystem string, typeBoot string) error {
 	}
 
 	if rootFileSystem == "btrfs" {
-		if err := createBtrfsSubVolumes(partitions["root"]); err != nil {
+		if err := createBtrfsSubVolumes(partitions["root"].Path); err != nil {
 			return fmt.Errorf("ошибка создания подтомов Btrfs: %v", err)
 		}
 	}
@@ -328,7 +324,7 @@ func prepareDisk(disk string, rootFileSystem string, typeBoot string) error {
 	// Создание временного раздела
 	tempCommands := [][]string{
 		{"mkdir", "-p", "/var/lib/containers"},
-		{"mount", partitions["temp"], "/var/lib/containers"},
+		{"mount", partitions["temp"].Path, "/var/lib/containers"},
 	}
 
 	for _, args := range tempCommands {
@@ -390,20 +386,20 @@ func installToFilesystem(image string, disk string, typeBoot string, rootFileSys
 
 	// Монтируем разделы
 	if rootFileSystem == "btrfs" {
-		if err := mountDisk(partitions["root"], mountPoint, "subvol=@"); err != nil {
+		if err := mountDisk(partitions["root"].Path, mountPoint, "subvol=@"); err != nil {
 			return fmt.Errorf("ошибка монтирования корневого подтома: %v", err)
 		}
 	} else {
-		if err := mountDisk(partitions["root"], mountPoint, ""); err != nil {
+		if err := mountDisk(partitions["root"].Path, mountPoint, ""); err != nil {
 			return fmt.Errorf("ошибка монтирования root раздела: %v", err)
 		}
 	}
 
-	if err := mountDisk(partitions["boot"], mountPointBoot, ""); err != nil {
+	if err := mountDisk(partitions["boot"].Path, mountPointBoot, ""); err != nil {
 		return fmt.Errorf("ошибка монтирования boot раздела: %v", err)
 	}
 
-	if err := mountDisk(partitions["efi"], efiMountPoint, ""); err != nil {
+	if err := mountDisk(partitions["efi"].Path, efiMountPoint, ""); err != nil {
 		return fmt.Errorf("ошибка монтирования EFI раздела: %v", err)
 	}
 
@@ -443,15 +439,15 @@ func installToFilesystem(image string, disk string, typeBoot string, rootFileSys
 	unmountDisk(mountPoint)
 
 	if rootFileSystem == "btrfs" {
-		if err := mountDisk(partitions["root"], mountPoint, "rw,subvol=@"); err != nil {
+		if err := mountDisk(partitions["root"].Path, mountPoint, "rw,subvol=@"); err != nil {
 			return fmt.Errorf("ошибка повторного монтирования корневого подтома: %v", err)
 		}
 
-		if err := mountDisk(partitions["root"], mountBtrfsVar, "subvol=@var"); err != nil {
+		if err := mountDisk(partitions["root"].Path, mountBtrfsVar, "subvol=@var"); err != nil {
 			return fmt.Errorf("ошибка монтирования подтома @var: %v", err)
 		}
 
-		if err := mountDisk(partitions["root"], mountBtrfsHome, "subvol=@home"); err != nil {
+		if err := mountDisk(partitions["root"].Path, mountBtrfsHome, "subvol=@home"); err != nil {
 			return fmt.Errorf("ошибка монтирования подтома @home: %v", err)
 		}
 
@@ -475,16 +471,16 @@ func installToFilesystem(image string, disk string, typeBoot string, rootFileSys
 		//	return fmt.Errorf("ошибка очистки содержимого /var: %v", err)
 		//}
 	} else {
-		if err := mountDisk(partitions["root"], mountPoint, "rw"); err != nil {
+		if err := mountDisk(partitions["root"].Path, mountPoint, "rw"); err != nil {
 			return fmt.Errorf("ошибка повторного монтирования root раздела: %v", err)
 		}
 	}
 
-	if err := mountDisk(partitions["boot"], mountPointBoot, "rw"); err != nil {
+	if err := mountDisk(partitions["boot"].Path, mountPointBoot, "rw"); err != nil {
 		return fmt.Errorf("ошибка повторного монтирования boot раздела: %v", err)
 	}
 
-	if err := mountDisk(partitions["efi"], efiMountPoint, "rw"); err != nil {
+	if err := mountDisk(partitions["efi"].Path, efiMountPoint, "rw"); err != nil {
 		return fmt.Errorf("ошибка повторного монтирования EFI раздела: %v", err)
 	}
 
@@ -606,8 +602,12 @@ func generateFstab(mountPoint string, partitions map[string]string, rootFileSyst
 	return nil
 }
 
-// getNamedPartitions возвращает мапу с именованными разделами в зависимости от типа загрузки
-func getNamedPartitions(disk string, typeBoot string) (map[string]string, error) {
+type PartitionInfo struct {
+	Path   string
+	Number string
+}
+
+func getNamedPartitions(disk string, typeBoot string) (map[string]PartitionInfo, error) {
 	partitions, err := getPartitions(disk)
 	if err != nil {
 		return nil, err
@@ -623,18 +623,20 @@ func getNamedPartitions(disk string, typeBoot string) (map[string]string, error)
 		return nil, fmt.Errorf("недостаточно разделов на диске для режима UEFI")
 	}
 
-	namedPartitions := make(map[string]string)
+	// Карта с информацией о разделах
+	namedPartitions := make(map[string]PartitionInfo)
+
 	if typeBoot == "LEGACY" {
-		namedPartitions["bios"] = partitions[0] // BIOS Boot Partition
-		namedPartitions["efi"] = partitions[1]  // EFI Partition
-		namedPartitions["boot"] = partitions[2] // Boot Partition
-		namedPartitions["root"] = partitions[3] // Root Partition
-		namedPartitions["temp"] = partitions[4] // Root Partition
+		namedPartitions["bios"] = PartitionInfo{Path: partitions[0], Number: "1"} // BIOS Boot Partition
+		namedPartitions["efi"] = PartitionInfo{Path: partitions[1], Number: "2"}  // EFI Partition
+		namedPartitions["boot"] = PartitionInfo{Path: partitions[2], Number: "3"} // Boot Partition
+		namedPartitions["root"] = PartitionInfo{Path: partitions[3], Number: "4"} // Root Partition
+		namedPartitions["temp"] = PartitionInfo{Path: partitions[4], Number: "5"} // Temporary Partition
 	} else if typeBoot == "UEFI" {
-		namedPartitions["efi"] = partitions[0]  // EFI Partition
-		namedPartitions["boot"] = partitions[1] // Boot Partition
-		namedPartitions["root"] = partitions[2] // Root Partition
-		namedPartitions["temp"] = partitions[3] // Root Partition
+		namedPartitions["efi"] = PartitionInfo{Path: partitions[0], Number: "1"}  // EFI Partition
+		namedPartitions["boot"] = PartitionInfo{Path: partitions[1], Number: "2"} // Boot Partition
+		namedPartitions["root"] = PartitionInfo{Path: partitions[2], Number: "3"} // Root Partition
+		namedPartitions["temp"] = PartitionInfo{Path: partitions[3], Number: "4"} // Temporary Partition
 	}
 
 	return namedPartitions, nil
