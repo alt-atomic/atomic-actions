@@ -168,7 +168,7 @@ func unmount(path string) error {
 
 // prepareDisk выполняет подготовку диска
 func prepareDisk(disk string, rootFileSystem string, typeBoot string) error {
-	paths := []string{"/mnt/temp_containers", "/mnt/target", "/mnt/target/boot", "/mnt/target/boot/efi"}
+	paths := []string{"/mnt/target/boot/efi", "/mnt/target/boot", "/mnt/temp_containers", "/mnt/target"}
 
 	for _, path := range paths {
 		_ = unmount(path)
