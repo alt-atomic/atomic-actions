@@ -12,7 +12,7 @@ import (
 // managePodmanConfig управляет процессом изменения, перезапуска и восстановления конфигурации Podman
 func managePodmanConfig(newConfigContent string) (func(), error) {
 	configPath := "/usr/share/containers/storage.conf"
-	backupPath := "/usr/share/storage.conf.bak"
+	backupPath := "/usr/share/containers/storage.conf.bak"
 
 	// Создание резервной копии файла конфигурации
 	log.Println("Создание резервной копии конфигурации Podman...")
