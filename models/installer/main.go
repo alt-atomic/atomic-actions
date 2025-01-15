@@ -57,6 +57,11 @@ func Run() {
 		log.Fatalf("Ошибка подготовки диска: %v\n", err)
 	}
 
+	// Убедимся, что символическая ссылка настроена
+	if err := setupSymbolicLink(); err != nil {
+		log.Fatalf("Ошибка настройки символической ссылки: %v\n", err)
+	}
+
 	// Шаг 4: Установка с использованием bootc
 	if err := installToFilesystem(imageResult, diskResult, typeBoot, typeFileSystem); err != nil {
 		log.Fatalf("Ошибка установки: %v\n", err)
@@ -318,6 +323,37 @@ func createBtrfsSubVolumes(rootPartition string) error {
 		}
 	}
 
+	return nil
+}
+
+func setupSymbolicLink() error {
+	log.Println("Настройка символической ссылки для /var/lib/containers...")
+
+	source := "/var/lib/containers"
+	target := "/mnt/temp_containers"
+
+	// Если целевая директория не существует, создаём её
+	if _, err := os.Stat(target); os.IsNotExist(err) {
+		log.Printf("Создание директории: %s\n", target)
+		if err := os.MkdirAll(target, 0755); err != nil {
+			return fmt.Errorf("ошибка создания директории %s: %v", target, err)
+		}
+	}
+
+	if _, err := os.Stat(source); err == nil {
+		backup := source + ".bak"
+		log.Printf("Переименование %s в %s\n", source, backup)
+		if err := os.Rename(source, backup); err != nil {
+			return fmt.Errorf("ошибка переименования %s: %v", source, err)
+		}
+	}
+
+	log.Printf("Создание символической ссылки: %s -> %s\n", source, target)
+	if err := os.Symlink(target, source); err != nil {
+		return fmt.Errorf("ошибка создания символической ссылки %s -> %s: %v", source, target, err)
+	}
+
+	log.Println("Символическая ссылка успешно настроена.")
 	return nil
 }
 
