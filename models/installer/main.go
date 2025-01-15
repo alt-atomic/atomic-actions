@@ -77,12 +77,17 @@ func Run() {
 func cleanupTemporaryPartition(partitions map[string]string, diskResult string) error {
 	log.Println("Перенос данных из временного раздела в root-раздел...")
 
+	// Получаем разделы
 	rootPartition := partitions["root"]
+	tempPartition := partitions["temp"]
+
+	// Получаем номер root-раздела
 	rootPartitionNumber := strings.TrimPrefix(rootPartition, diskResult)
+	tempPartitionNumber := strings.TrimPrefix(tempPartition, diskResult)
 
 	commands := [][]string{
-		{"rsync", "-a", "/mnt/temp_containers/", "/var/lib/containers/"},        // Перенос данных обратно в root
 		{"umount", "/mnt/temp_containers"},                                      // Размонтирование временного раздела
+		{"parted", "-s", diskResult, "rm", tempPartitionNumber},                 // Удаление временного раздела
 		{"parted", "-s", diskResult, "resizepart", rootPartitionNumber, "100%"}, // Расширение root-раздела
 		{"resize2fs", rootPartition},                                            // Обновление файловой системы root
 	}
