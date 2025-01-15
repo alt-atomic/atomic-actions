@@ -421,7 +421,7 @@ func installToFilesystem(image string, disk string, typeBoot string, rootFileSys
 
 	cmd := exec.Command("sudo", "podman", "run", "--rm", "--privileged", "--pid=host",
 		"--security-opt", "label=type:unconfined_t",
-		"-v", "/mnt/temp_containers:/var/lib/containers",
+		"-v", "/var/lib/containers:/var/lib/containers",
 		"-v", "/dev:/dev",
 		"-v", "/mnt/target:/mnt/target",
 		"-v", fmt.Sprintf("%s:/output", currentDir),
