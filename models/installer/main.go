@@ -122,8 +122,17 @@ func cleanupTemporaryPartition(partitions map[string]string, diskResult string) 
 
 	if fsType == "btrfs" {
 		// Для btrfs используем btrfs filesystem resize
+		mountPoint := "/mnt/btrfs-root"
 		log.Printf("Изменение размера файловой системы btrfs на разделе %s...\n", rootPartition)
-		cmd = exec.Command("btrfs", "filesystem", "resize", "max", rootPartition)
+
+		// Монтируем раздел
+		if err := mountDisk(rootPartition, mountPoint, ""); err != nil {
+			return fmt.Errorf("ошибка монтирования btrfs-раздела: %v", err)
+		}
+		defer unmountDisk(mountPoint) // Размонтируем после завершения
+
+		// Выполняем resize на точке монтирования
+		cmd = exec.Command("btrfs", "filesystem", "resize", "max", mountPoint)
 		cmd.Stdout = os.Stdout
 		cmd.Stderr = os.Stderr
 		if err := cmd.Run(); err != nil {
