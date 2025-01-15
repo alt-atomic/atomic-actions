@@ -340,14 +340,23 @@ func setupSymbolicLink() error {
 		}
 	}
 
-	if _, err := os.Stat(source); err == nil {
-		backup := source + ".bak"
-		log.Printf("Переименование %s в %s\n", source, backup)
-		if err := os.Rename(source, backup); err != nil {
-			return fmt.Errorf("ошибка переименования %s: %v", source, err)
+	// Проверяем, является ли `source` символической ссылкой
+	if info, err := os.Lstat(source); err == nil {
+		if info.Mode()&os.ModeSymlink != 0 {
+			log.Printf("Удаление существующей символической ссылки: %s\n", source)
+			if err := os.Remove(source); err != nil {
+				return fmt.Errorf("ошибка удаления символической ссылки %s: %v", source, err)
+			}
+		} else {
+			backup := source + ".bak"
+			log.Printf("Переименование %s в %s\n", source, backup)
+			if err := os.Rename(source, backup); err != nil {
+				return fmt.Errorf("ошибка переименования %s: %v", source, err)
+			}
 		}
 	}
 
+	// Создание символической ссылки
 	log.Printf("Создание символической ссылки: %s -> %s\n", source, target)
 	if err := os.Symlink(target, source); err != nil {
 		return fmt.Errorf("ошибка создания символической ссылки %s -> %s: %v", source, target, err)
