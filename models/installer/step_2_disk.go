@@ -6,6 +6,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"os"
 	"os/exec"
+	"strconv"
 	"strings"
 )
 
@@ -23,7 +24,7 @@ func RunDiskStep() string {
 
 	model, err := p.Run()
 	if err != nil {
-		fmt.Printf("Ошибка во время выбора образа: %v\n", err)
+		fmt.Printf("Ошибка во время выбора диска: %v\n", err)
 		os.Exit(1)
 	}
 
@@ -34,7 +35,7 @@ func RunDiskStep() string {
 func InitialDisk() Disk {
 	disks := getAvailableDisks()
 	if len(disks) == 0 {
-		fmt.Println(theme.ErrorStyle.Render("Дисковые устройства не найдены!"))
+		fmt.Println(theme.ErrorStyle.Render("Для установки требуется дисковое устройство размером ≥ 50 ГБ!"))
 		os.Exit(1)
 	}
 
@@ -46,31 +47,76 @@ func InitialDisk() Disk {
 	}
 }
 
+// ----------------------------------------------------------------------------
+// Изменяемая функция: учитываем только диски размером >= 50 ГБ
 func getAvailableDisks() []string {
 	out, err := exec.Command("lsblk", "-o", "NAME,SIZE,TYPE", "-d", "-n").Output()
 	if err != nil {
-		return []string{"Ошибка получения списка дисков"}
+		fmt.Println("Ошибка получения списка дисков:", err)
+		os.Exit(1)
 	}
 
 	lines := strings.Split(strings.TrimSpace(string(out)), "\n")
 	var disks []string
 
-	// Исключаем устройства zram и loop
 	for _, line := range lines {
 		fields := strings.Fields(line)
-		if len(fields) >= 3 && fields[2] == "disk" { // Оставляем только устройства типа "disk"
+		if len(fields) >= 3 && fields[2] == "disk" {
+			// Исключаем zram и loop
 			if strings.HasPrefix(fields[0], "zram") || strings.HasPrefix(fields[0], "loop") {
 				continue
 			}
 
-			// Формируем отображаемое название
-			devicePath := "/dev/" + fields[0]
-			displayName := devicePath + " (" + fields[1] + ")"
-			disks = append(disks, displayName)
+			// Парсим размер, если не удалось — пропускаем
+			sizeGb, err := parseSize(fields[1])
+			if err != nil {
+				continue
+			}
+
+			// Оставляем диск, только если он ≥ 50 ГБ
+			if sizeGb >= 50 {
+				devicePath := "/dev/" + fields[0]
+				displayName := fmt.Sprintf("%s (%s)", devicePath, fields[1])
+				disks = append(disks, displayName)
+			}
 		}
 	}
+
+	// Если подходящих дисков нет — вернём пустой список
 	return disks
 }
+
+// parseSize парсит строку вида "100G", "512M", "2T" и возвращает размер в ГБ.
+// Если строка не распознана, возвращаем ошибку.
+func parseSize(sizeStr string) (float64, error) {
+	if len(sizeStr) < 2 {
+		return 0, fmt.Errorf("неизвестный формат размера: %s", sizeStr)
+	}
+	unit := sizeStr[len(sizeStr)-1]    // последняя буква: G / M / T / и т.д.
+	valStr := sizeStr[:len(sizeStr)-1] // всё, кроме последней буквы
+
+	value, err := strconv.ParseFloat(valStr, 64)
+	if err != nil {
+		return 0, fmt.Errorf("ошибка парсинга числа из %s: %w", valStr, err)
+	}
+
+	switch unit {
+	case 'G':
+		// Обычные гигабайты
+		return value, nil
+	case 'M':
+		// Мегабайты -> делим на 1024, получаем ГБ
+		return value / 1024.0, nil
+	case 'T':
+		// Терабайты -> умножаем на 1024, получаем ГБ
+		return value * 1024.0, nil
+	default:
+		// Если попался какой-то другой (например, KiB, GiB — но lsblk обычно пишет G/M/T)
+		return 0, fmt.Errorf("неизвестная единица измерения: %c", unit)
+	}
+}
+
+// ----------------------------------------------------------------------------
 
 func (m Disk) Init() tea.Cmd {
 	return nil
@@ -91,11 +137,12 @@ func (m Disk) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				}
 			case "enter", " ":
 				if m.confirmCursor == 0 {
-					// Извлекаем только путь устройства, убирая объем
+					// Извлекаем только путь устройства ("/dev/sda"), без объёма в скобках
 					selectedDisk := m.choices[m.selected]
-					m.Result = strings.Split(selectedDisk, " ")[0] // Берем только "/dev/vdX"
+					m.Result = strings.Split(selectedDisk, " ")[0]
 					return m, tea.Quit
 				} else {
+					// Отмена подтверждения
 					m.selected = -1
 					m.confirmActive = false
 				}
@@ -133,7 +180,7 @@ func (m Disk) View() string {
 			cursor = theme.CursorStyle.Render(">")
 		}
 
-		checked := " " // Не выбрано
+		checked := " "
 		if m.selected == i {
 			checked = theme.SelectedStyle.Render("x")
 		}
@@ -142,7 +189,8 @@ func (m Disk) View() string {
 	}
 
 	if m.confirmActive {
-		body += "\nВы уверены, что хотите выбрать диск " + theme.SelectedStyle.Render(m.choices[m.selected]) + "?\n"
+		body += "\nВы уверены, что хотите выбрать диск " +
+			theme.SelectedStyle.Render(m.choices[m.selected]) + "?\n"
 		confirmOptions := []string{"Да", "Отмена"}
 		for i, option := range confirmOptions {
 			cursor := " "
