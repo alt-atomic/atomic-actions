@@ -60,7 +60,7 @@ func InitialBootMode() BootMode {
 }
 
 func checkUEFISupport() bool {
-	_, err := os.Stat("/sys/firmware/efi/efivars")
+	_, err := os.Stat("/sys/firmware/efi/efivars1")
 	return err == nil
 }
 
