@@ -20,8 +20,14 @@ type BootMode struct {
 }
 
 func RunBootModeStep() string {
-	p := tea.NewProgram(InitialBootMode())
+	// Сначала проверяем поддержку UEFI
+	if !checkUEFISupport() {
+		fmt.Println(theme.WarningsStyle.Render("Система не поддерживает UEFI. Автоматически выбран LEGACY."))
+		return "LEGACY"
+	}
 
+	// Если поддержка есть, запускаем TUI
+	p := tea.NewProgram(InitialBootMode())
 	model, err := p.Run()
 	if err != nil {
 		fmt.Printf("Ошибка во время выбора типа загрузки: %v\n", err)
@@ -54,7 +60,7 @@ func InitialBootMode() BootMode {
 }
 
 func checkUEFISupport() bool {
-	_, err := os.Stat("/sys/firmware/efi/efivars")
+	_, err := os.Stat("/sys/firmware/efi/efivars1")
 	return err == nil
 }
 
