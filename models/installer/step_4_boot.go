@@ -44,7 +44,7 @@ func InitialBootMode() BootMode {
 	infoMessage := ""
 
 	if uefiSupported {
-		infoMessage = "Ваш компьютер поддерживает UEFI загрузку, это рекомендуемый выбор."
+		infoMessage = "Ваш компьютер поддерживает UEFI загрузку, это - рекомендуемый выбор."
 	} else {
 		infoMessage = "Ваш компьютер не поддерживает UEFI, рекомендуем выбрать LEGACY."
 	}
