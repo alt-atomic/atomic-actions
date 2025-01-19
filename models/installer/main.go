@@ -451,16 +451,6 @@ func installToFilesystem(image string, disk string, typeBoot string, rootFileSys
 		return fmt.Errorf("ошибка выполнения bootc: %v", err)
 	}
 
-	// Добавляем нового пользователя и задаём пароль root в chroot окружении
-	chrootPath, err := findOstreeDeployPath(mountPoint)
-	if err != nil {
-		return fmt.Errorf("ошибка поиска ostree deploy пути: %v", err)
-	}
-
-	if err := configureUserAndRoot(chrootPath, user.Username, user.Password); err != nil {
-		return fmt.Errorf("ошибка настройки пользователя и root: %v", err)
-	}
-
 	unmountDisk(efiMountPoint)
 	unmountDisk(mountPointBoot)
 	unmountDisk(mountPoint)
@@ -501,6 +491,16 @@ func installToFilesystem(image string, disk string, typeBoot string, rootFileSys
 		if err := mountDisk(partitions["root"].Path, mountPoint, "rw"); err != nil {
 			return fmt.Errorf("ошибка повторного монтирования root раздела: %v", err)
 		}
+	}
+
+	// Добавляем нового пользователя и задаём пароль root в chroot окружении
+	chrootPath, err := findOstreeDeployPath(mountPoint)
+	if err != nil {
+		return fmt.Errorf("ошибка поиска ostree deploy пути: %v", err)
+	}
+
+	if err := configureUserAndRoot(chrootPath, user.Username, user.Password); err != nil {
+		return fmt.Errorf("ошибка настройки пользователя и root: %v", err)
 	}
 
 	if err := mountDisk(partitions["boot"].Path, mountPointBoot, "rw"); err != nil {
