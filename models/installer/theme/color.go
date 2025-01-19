@@ -4,14 +4,14 @@ import "github.com/charmbracelet/lipgloss"
 
 // Определение цветов
 var (
-	cursorColor   = lipgloss.Color("205")
-	selectedColor = lipgloss.Color("34")
-	headerColor   = lipgloss.Color("220")
-	footerColor   = lipgloss.Color("167")
-	successColor  = lipgloss.Color("34")
-	errorColor    = lipgloss.Color("160")
-	loadingColor  = lipgloss.Color("33")
-	warningColor  = lipgloss.Color("214")
+	cursorColor   = lipgloss.Color("205") // Розовый (Pink)
+	selectedColor = lipgloss.Color("34")  // Зеленый (Green)
+	headerColor   = lipgloss.Color("220") // Желтый (Yellow)
+	footerColor   = lipgloss.Color("167") // Красновато-розовый (Deep Pink)
+	successColor  = lipgloss.Color("34")  // Зеленый (Green)
+	errorColor    = lipgloss.Color("160") // Красный (Red)
+	loadingColor  = lipgloss.Color("33")  // Голубой (Cyan)
+	warningColor  = lipgloss.Color("214") // Оранжевый (Orange)
 
 	WarningsStyle    = lipgloss.NewStyle().Bold(true).Foreground(warningColor)
 	CursorStyle      = lipgloss.NewStyle().Foreground(cursorColor)

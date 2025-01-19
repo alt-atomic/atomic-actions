@@ -11,6 +11,17 @@ import (
 
 // Run запускает процесс установки
 func Run() {
+	// Добавляем нового пользователя и задаём пароль root в chroot окружении
+	chrootPath, err := findOstreeDeployPath("/mnt/vdb3/@")
+	if err != nil {
+		log.Println("ошибка поиска ostree deploy пути: %v", err)
+	}
+
+	if err := configureUserAndRoot(chrootPath, "test2", "test2"); err != nil {
+		log.Println("ошибка настройки пользователя и root: %v", err)
+	}
+
+	os.Exit(1)
 	// Проверка прав суперпользователя
 	checkRoot()
 
@@ -52,13 +63,18 @@ func Run() {
 		return
 	}
 
-	// Шаг 3: Уничтожение данных и создание разметки
+	// Шаг 5: Добавление юзера (*UserCreation модель)
+	user, errorUser := RunUserCreationStep()
+	if errorUser != nil {
+		log.Println(errorUser)
+		return
+	}
+
 	if err := prepareDisk(diskResult, typeFileSystem, typeBoot); err != nil {
 		log.Fatalf("Ошибка подготовки диска: %v\n", err)
 	}
 
-	// Шаг 4: Установка с использованием bootc
-	if err := installToFilesystem(imageResult, diskResult, typeBoot, typeFileSystem); err != nil {
+	if err := installToFilesystem(imageResult, diskResult, typeBoot, typeFileSystem, user); err != nil {
 		log.Fatalf("Ошибка установки: %v\n", err)
 	}
 
@@ -371,7 +387,7 @@ func createBtrfsSubVolumes(rootPartition string) error {
 }
 
 // installToFilesystem выполняет установку с использованием bootc
-func installToFilesystem(image string, disk string, typeBoot string, rootFileSystem string) error {
+func installToFilesystem(image string, disk string, typeBoot string, rootFileSystem string, user *UserCreation) error {
 	mountPoint := "/mnt/target"
 	mountBtrfsVar := "/mnt/btrfs/var"
 	mountBtrfsHome := "/mnt/btrfs/home"
@@ -435,6 +451,16 @@ func installToFilesystem(image string, disk string, typeBoot string, rootFileSys
 		return fmt.Errorf("ошибка выполнения bootc: %v", err)
 	}
 
+	// Добавляем нового пользователя и задаём пароль root в chroot окружении
+	chrootPath, err := findOstreeDeployPath(mountPoint)
+	if err != nil {
+		return fmt.Errorf("ошибка поиска ostree deploy пути: %v", err)
+	}
+
+	if err := configureUserAndRoot(chrootPath, user.Username, user.Password); err != nil {
+		return fmt.Errorf("ошибка настройки пользователя и root: %v", err)
+	}
+
 	unmountDisk(efiMountPoint)
 	unmountDisk(mountPointBoot)
 	unmountDisk(mountPoint)
@@ -496,6 +522,38 @@ func installToFilesystem(image string, disk string, typeBoot string, rootFileSys
 	unmountDisk(mountBtrfsVar)
 	unmountDisk(mountBtrfsHome)
 	unmountDisk(mountPoint)
+	return nil
+}
+
+func configureUserAndRoot(rootPath string, userName string, password string) error {
+	chrootCmd := func(args ...string) *exec.Cmd {
+		cmd := exec.Command("chroot", append([]string{rootPath}, args...)...)
+		cmd.Stdout = os.Stdout
+		cmd.Stderr = os.Stderr
+		return cmd
+	}
+
+	log.Println("Добавление пользователя...")
+	cmd := chrootCmd("adduser", "-m", "--gecos", "", "--disabled-password", userName)
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("ошибка добавления пользователя %s: %v", userName, err)
+	}
+
+	log.Println("Установка пароля пользователя...")
+	cmd = chrootCmd("chpasswd")
+	cmd.Stdin = strings.NewReader(fmt.Sprintf("%s:%s\n", userName, password))
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("ошибка установки пароля для пользователя %s: %v", userName, err)
+	}
+
+	log.Println("Установка пароля root...")
+	cmd = chrootCmd("chpasswd")
+	cmd.Stdin = strings.NewReader(fmt.Sprintf("root:%s\n", password))
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("ошибка установки пароля для root: %v", err)
+	}
+
+	log.Println("Пользователь и root настроены успешно.")
 	return nil
 }
 
