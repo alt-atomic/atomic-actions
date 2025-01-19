@@ -473,6 +473,10 @@ func installToFilesystem(image string, disk string, typeBoot string, rootFileSys
 			return fmt.Errorf("ошибка поиска ostree deploy пути: %v", err)
 		}
 
+		if err := configureUserAndRoot(ostreeDeployPath, user.Username, user.Password); err != nil {
+			return fmt.Errorf("ошибка настройки пользователя и root: %v", err)
+		}
+
 		// Копируем содержимое /var в подтом @var
 		if err := copyWithRsync(fmt.Sprintf("%s/var/", ostreeDeployPath), mountBtrfsVar); err != nil {
 			return fmt.Errorf("ошибка копирования /var в @var: %v", err)
@@ -491,16 +495,15 @@ func installToFilesystem(image string, disk string, typeBoot string, rootFileSys
 		if err := mountDisk(partitions["root"].Path, mountPoint, "rw"); err != nil {
 			return fmt.Errorf("ошибка повторного монтирования root раздела: %v", err)
 		}
-	}
 
-	// Добавляем нового пользователя и задаём пароль root в chroot окружении
-	chrootPath, err := findOstreeDeployPath(mountPoint)
-	if err != nil {
-		return fmt.Errorf("ошибка поиска ostree deploy пути: %v", err)
-	}
+		ostreeDeployPath, err := findOstreeDeployPath(mountPoint)
+		if err != nil {
+			return fmt.Errorf("ошибка поиска ostree deploy пути: %v", err)
+		}
 
-	if err := configureUserAndRoot(chrootPath, user.Username, user.Password); err != nil {
-		return fmt.Errorf("ошибка настройки пользователя и root: %v", err)
+		if err := configureUserAndRoot(ostreeDeployPath, user.Username, user.Password); err != nil {
+			return fmt.Errorf("ошибка настройки пользователя и root: %v", err)
+		}
 	}
 
 	if err := mountDisk(partitions["boot"].Path, mountPointBoot, "rw"); err != nil {
@@ -533,20 +536,30 @@ func configureUserAndRoot(rootPath string, userName string, password string) err
 		return cmd
 	}
 
+	varHomePath := fmt.Sprintf("%s/var/home", rootPath)
+
+	log.Println("Проверка существования каталога /var/home...")
+	if _, err := os.Stat(varHomePath); os.IsNotExist(err) {
+		log.Printf("Каталог %s не существует. Создаём...\n", varHomePath)
+		if err := os.MkdirAll(varHomePath, 0755); err != nil {
+			return fmt.Errorf("ошибка создания каталога %s: %v", varHomePath, err)
+		}
+	}
+
 	log.Println("Добавление пользователя...")
-	cmd := chrootCmd("adduser", "-m", userName) // Только существующие параметры
+	cmd := chrootCmd("adduser", "-m", "-d", fmt.Sprintf("/var/home/%s", userName), userName)
 	if err := cmd.Run(); err != nil {
 		return fmt.Errorf("ошибка добавления пользователя %s: %v", userName, err)
 	}
 
 	log.Println("Установка пароля пользователя...")
-	cmd = chrootCmd("sh", "-c", fmt.Sprintf("echo '%s:%s' | sudo chpasswd", userName, password))
+	cmd = chrootCmd("sh", "-c", fmt.Sprintf("echo '%s:%s' | chpasswd", userName, password))
 	if err := cmd.Run(); err != nil {
 		return fmt.Errorf("ошибка установки пароля для пользователя %s: %v", userName, err)
 	}
 
 	log.Println("Установка пароля root...")
-	cmd = chrootCmd("sh", "-c", fmt.Sprintf("echo 'root:%s' | sudo chpasswd", password))
+	cmd = chrootCmd("sh", "-c", fmt.Sprintf("echo 'root:%s' | chpasswd", password))
 	if err := cmd.Run(); err != nil {
 		return fmt.Errorf("ошибка установки пароля для root: %v", err)
 	}
@@ -574,9 +587,9 @@ func clearDirectory(path string) error {
 
 // copyWithRsync копирование с использованием команды rsync
 func copyWithRsync(src string, dst string) error {
-	cmd := exec.Command("rsync", "-aHAXv", src, dst)
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
+	cmd := exec.Command("rsync", "-aHAX", src, dst)
+	cmd.Stdout = nil
+	cmd.Stderr = nil
 
 	log.Printf("Копирование с использованием rsync: %s -> %s\n", src, dst)
 	if err := cmd.Run(); err != nil {
