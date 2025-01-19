@@ -11,17 +11,17 @@ import (
 
 // Run запускает процесс установки
 func Run() {
-	// Добавляем нового пользователя и задаём пароль root в chroot окружении
-	chrootPath, err := findOstreeDeployPath("/mnt/vdb3/@")
-	if err != nil {
-		log.Println("ошибка поиска ostree deploy пути: %v", err)
-	}
-
-	if err := configureUserAndRoot(chrootPath, "test2", "test2"); err != nil {
-		log.Println("ошибка настройки пользователя и root: %v", err)
-	}
-
-	os.Exit(1)
+	//// Добавляем нового пользователя и задаём пароль root в chroot окружении
+	//chrootPath, err := findOstreeDeployPath("/mnt/vdb3/@")
+	//if err != nil {
+	//	log.Println("ошибка поиска ostree deploy пути: %v", err)
+	//}
+	//
+	//if err := configureUserAndRoot(chrootPath, "test2", "test2"); err != nil {
+	//	log.Println("ошибка настройки пользователя и root: %v", err)
+	//}
+	//
+	//os.Exit(1)
 	// Проверка прав суперпользователя
 	checkRoot()
 
