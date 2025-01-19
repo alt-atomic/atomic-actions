@@ -527,7 +527,7 @@ func installToFilesystem(image string, disk string, typeBoot string, rootFileSys
 
 func configureUserAndRoot(rootPath string, userName string, password string) error {
 	chrootCmd := func(args ...string) *exec.Cmd {
-		cmd := exec.Command("chroot", append([]string{rootPath}, args...)...)
+		cmd := exec.Command("sudo", append([]string{"chroot", rootPath}, args...)...)
 		cmd.Stdout = os.Stdout
 		cmd.Stderr = os.Stderr
 		return cmd
