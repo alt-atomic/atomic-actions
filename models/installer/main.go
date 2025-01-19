@@ -534,21 +534,19 @@ func configureUserAndRoot(rootPath string, userName string, password string) err
 	}
 
 	log.Println("Добавление пользователя...")
-	cmd := chrootCmd("adduser", "-m", "--disabled-password", userName)
+	cmd := chrootCmd("adduser", "-m", userName) // Только существующие параметры
 	if err := cmd.Run(); err != nil {
 		return fmt.Errorf("ошибка добавления пользователя %s: %v", userName, err)
 	}
 
 	log.Println("Установка пароля пользователя...")
-	cmd = chrootCmd("chpasswd")
-	cmd.Stdin = strings.NewReader(fmt.Sprintf("%s:%s\n", userName, password))
+	cmd = chrootCmd("sh", "-c", fmt.Sprintf("echo '%s:%s' | chpasswd", userName, password))
 	if err := cmd.Run(); err != nil {
 		return fmt.Errorf("ошибка установки пароля для пользователя %s: %v", userName, err)
 	}
 
 	log.Println("Установка пароля root...")
-	cmd = chrootCmd("chpasswd")
-	cmd.Stdin = strings.NewReader(fmt.Sprintf("root:%s\n", password))
+	cmd = chrootCmd("sh", "-c", fmt.Sprintf("echo 'root:%s' | chpasswd", password))
 	if err := cmd.Run(); err != nil {
 		return fmt.Errorf("ошибка установки пароля для root: %v", err)
 	}
