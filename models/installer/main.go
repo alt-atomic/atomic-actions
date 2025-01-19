@@ -534,7 +534,7 @@ func configureUserAndRoot(rootPath string, userName string, password string) err
 	}
 
 	log.Println("Добавление пользователя...")
-	cmd := chrootCmd("adduser", "-m", "--gecos", "", "--disabled-password", userName)
+	cmd := chrootCmd("adduser", "-m", "--disabled-password", userName)
 	if err := cmd.Run(); err != nil {
 		return fmt.Errorf("ошибка добавления пользователя %s: %v", userName, err)
 	}
