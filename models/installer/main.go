@@ -540,13 +540,13 @@ func configureUserAndRoot(rootPath string, userName string, password string) err
 	}
 
 	log.Println("Установка пароля пользователя...")
-	cmd = chrootCmd("sh", "-c", fmt.Sprintf("echo '%s:%s' | chpasswd", userName, password))
+	cmd = chrootCmd("sh", "-c", fmt.Sprintf("echo '%s:%s' | sudo chpasswd", userName, password))
 	if err := cmd.Run(); err != nil {
 		return fmt.Errorf("ошибка установки пароля для пользователя %s: %v", userName, err)
 	}
 
 	log.Println("Установка пароля root...")
-	cmd = chrootCmd("sh", "-c", fmt.Sprintf("echo 'root:%s' | chpasswd", password))
+	cmd = chrootCmd("sh", "-c", fmt.Sprintf("echo 'root:%s' | sudo chpasswd", password))
 	if err := cmd.Run(); err != nil {
 		return fmt.Errorf("ошибка установки пароля для root: %v", err)
 	}
