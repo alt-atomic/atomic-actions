@@ -527,6 +527,11 @@ func installToFilesystem(image string, disk string, typeBoot string, rootFileSys
 			return fmt.Errorf("ошибка настройки пользователя и root: %v", err)
 		}
 
+		// Очищаем содержимое /var внутри ostree
+		if err := clearDirectory(fmt.Sprintf("%s/var", ostreeDeployPath)); err != nil {
+			return fmt.Errorf("ошибка очистки содержимого /var: %v", err)
+		}
+
 		// Создаём папку пользователя внутри /ostree/deploy/default/var
 		varDeployPath := filepath.Join(ostreeDeployPath, "../../var/home")
 		userHomePath := filepath.Join(varDeployPath, user.Username)
