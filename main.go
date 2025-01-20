@@ -156,7 +156,7 @@ func printHelp(commands map[string]Command) {
 
 func setLogger() *os.File {
 	tempDir := os.TempDir()
-	logFilePath := filepath.Join(tempDir, "debug.log")
+	logFilePath := filepath.Join(tempDir, "atomic-actions-debug.log")
 	logFile, err := os.OpenFile(logFilePath, os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0o600)
 	if err != nil {
 		fmt.Println("fatal:", err)
