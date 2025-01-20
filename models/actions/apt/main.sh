@@ -29,7 +29,7 @@ validate_and_create_containerfile() {
 
   echo "Checking current staged image..."
   local staged_image
-  staged_image=$(sudo bootc status | grep "Current staged image:" | awk -F': ' '{print $2}')
+  staged_image=$(sudo bootc status | yq '.status.booted.image.image.image')
 
   if [[ -z "$staged_image" ]]; then
     err "Unable to determine the current staged image."
