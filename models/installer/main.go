@@ -9,6 +9,8 @@ import (
 	"syscall"
 )
 
+const timezone = "Europe/Moscow"
+
 // Run запускает процесс установки
 func RunInstaller() {
 	//// Добавляем нового пользователя и задаём пароль root в chroot окружении
@@ -477,6 +479,10 @@ func installToFilesystem(image string, disk string, typeBoot string, rootFileSys
 			return fmt.Errorf("ошибка настройки пользователя и root: %v", err)
 		}
 
+		if err := configureTimezone(ostreeDeployPath, timezone); err != nil {
+			return fmt.Errorf("ошибка установки timezone: %v", err)
+		}
+
 		// Копируем содержимое /var в подтом @var
 		if err := copyWithRsync(fmt.Sprintf("%s/var/", ostreeDeployPath), mountBtrfsVar); err != nil {
 			return fmt.Errorf("ошибка копирования /var в @var: %v", err)
@@ -504,6 +510,10 @@ func installToFilesystem(image string, disk string, typeBoot string, rootFileSys
 		if err := configureUserAndRoot(ostreeDeployPath, user.Username, user.Password); err != nil {
 			return fmt.Errorf("ошибка настройки пользователя и root: %v", err)
 		}
+
+		if err := configureTimezone(ostreeDeployPath, timezone); err != nil {
+			return fmt.Errorf("ошибка установки timezone: %v", err)
+		}
 	}
 
 	if err := mountDisk(partitions["boot"].Path, mountPointBoot, "rw"); err != nil {
@@ -525,6 +535,30 @@ func installToFilesystem(image string, disk string, typeBoot string, rootFileSys
 	unmountDisk(mountBtrfsVar)
 	unmountDisk(mountBtrfsHome)
 	unmountDisk(mountPoint)
+	return nil
+}
+
+// configureTimezone устанавливает тайм-зону в указанном chroot окружении
+func configureTimezone(rootPath string, timezone string) error {
+	log.Printf("Настройка таймзоны: %s\n", timezone)
+	localtimePath := fmt.Sprintf("%s/etc/localtime", rootPath)
+
+	// Удаляем существующий символический линк или файл
+	if _, err := os.Lstat(localtimePath); err == nil {
+		if err := os.Remove(localtimePath); err != nil {
+			return fmt.Errorf("ошибка удаления старого localtime: %v", err)
+		}
+	}
+
+	tzLink := fmt.Sprintf("/usr/share/zoneinfo/%s", timezone)
+	cmd := exec.Command("ln", "-sf", tzLink, localtimePath)
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("ошибка создания ссылки на таймзону: %v", err)
+	}
+
+	log.Printf("Таймзона %s успешно настроена.\n", timezone)
 	return nil
 }
 
