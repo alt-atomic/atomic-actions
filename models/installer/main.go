@@ -527,28 +527,35 @@ func installToFilesystem(image string, disk string, typeBoot string, rootFileSys
 			return fmt.Errorf("ошибка настройки пользователя и root: %v", err)
 		}
 
+		varDeployPath := filepath.Join(ostreeDeployPath, "../../var/home")
+
+		// Копируем содержимое /home из коммита внутрь varDeployPath
+		if err := copyWithRsync(fmt.Sprintf("%s/home/", ostreeDeployPath), varDeployPath); err != nil {
+			return fmt.Errorf("ошибка копирования /home в @home: %v", err)
+		}
+
 		// Очищаем содержимое /var внутри ostree
 		if err := clearDirectory(fmt.Sprintf("%s/var", ostreeDeployPath)); err != nil {
 			return fmt.Errorf("ошибка очистки содержимого /var: %v", err)
 		}
 
 		// Создаём папку пользователя внутри /ostree/deploy/default/var
-		varDeployPath := filepath.Join(ostreeDeployPath, "../../var/home")
-		userHomePath := filepath.Join(varDeployPath, user.Username)
-
-		log.Printf("Создание папки пользователя %s в %s\n", user.Username, varDeployPath)
-
-		if _, err := os.Stat(userHomePath); os.IsNotExist(err) {
-			if err := os.MkdirAll(userHomePath, 0755); err != nil {
-				return fmt.Errorf("ошибка создания папки пользователя %s: %v", userHomePath, err)
-			}
-			if err := os.Chown(userHomePath, 1000, 1000); err != nil {
-				return fmt.Errorf("ошибка изменения владельца для %s: %v", userHomePath, err)
-			}
-			log.Printf("Папка пользователя %s создана и настроена (UID: 1000, GID: 1000).\n", userHomePath)
-		} else {
-			log.Printf("Папка пользователя %s уже существует, пропускаем создание.\n", userHomePath)
-		}
+		//varDeployPath := filepath.Join(ostreeDeployPath, "../../var/home")
+		//userHomePath := filepath.Join(varDeployPath, user.Username)
+		//
+		//log.Printf("Создание папки пользователя %s в %s\n", user.Username, varDeployPath)
+		//
+		//if _, err := os.Stat(userHomePath); os.IsNotExist(err) {
+		//	if err := os.MkdirAll(userHomePath, 0755); err != nil {
+		//		return fmt.Errorf("ошибка создания папки пользователя %s: %v", userHomePath, err)
+		//	}
+		//	if err := os.Chown(userHomePath, 1000, 1000); err != nil {
+		//		return fmt.Errorf("ошибка изменения владельца для %s: %v", userHomePath, err)
+		//	}
+		//	log.Printf("Папка пользователя %s создана и настроена (UID: 1000, GID: 1000).\n", userHomePath)
+		//} else {
+		//	log.Printf("Папка пользователя %s уже существует, пропускаем создание.\n", userHomePath)
+		//}
 
 		if err := configureTimezone(ostreeDeployPath, timezone); err != nil {
 			return fmt.Errorf("ошибка установки timezone: %v", err)
