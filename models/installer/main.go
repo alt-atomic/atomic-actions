@@ -1,6 +1,7 @@
 package installer
 
 import (
+	"atomic-actions/models/installer/utility"
 	"fmt"
 	"log"
 	"os"
@@ -9,23 +10,11 @@ import (
 	"syscall"
 )
 
-const timezone = "Europe/Moscow"
+var timezone = "Europe/Moscow"
 
-// Run запускает процесс установки
 func RunInstaller() {
-	//// Добавляем нового пользователя и задаём пароль root в chroot окружении
-	//chrootPath, err := findOstreeDeployPath("/mnt/vdb3/@")
-	//if err != nil {
-	//	log.Println("ошибка поиска ostree deploy пути: %v", err)
-	//}
-	//
-	//if err := configureUserAndRoot(chrootPath, "test2", "test2"); err != nil {
-	//	log.Println("ошибка настройки пользователя и root: %v", err)
-	//}
-	//
-	//os.Exit(1)
-	// Проверка прав суперпользователя
 	checkRoot()
+	go checkTimeZone()
 
 	// Проверка наличия необходимых команд
 	if err := checkCommands(); err != nil {
@@ -90,6 +79,16 @@ func RunInstaller() {
 	}
 
 	log.Println("Установка завершена успешно!")
+}
+
+func checkTimeZone() {
+	ipTimeZone, err := utility.GetTimeZoneFromIP()
+	if err != nil {
+		log.Printf(err.Error())
+		return
+	}
+
+	timezone = ipTimeZone
 }
 
 func cleanupTemporaryPartition(partitions map[string]PartitionInfo, diskResult string) error {
