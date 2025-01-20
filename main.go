@@ -160,6 +160,7 @@ func setLogger() *os.File {
 	logFile, err := os.OpenFile(logFilePath, os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0o600)
 	if err != nil {
 		fmt.Println("fatal:", err)
+		//os.Exit(1)
 	}
 
 	// Настраиваем MultiWriter для записи в файл и консоль
