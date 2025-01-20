@@ -128,8 +128,8 @@ func printHelp(commands map[string]Command) {
 
 	// Создаем стиль с отступами для ячеек
 	cellStyle := lipgloss.NewStyle().
-		PaddingLeft(2).
-		PaddingRight(2)
+		PaddingLeft(1).
+		PaddingRight(1)
 
 	// Создаем таблицу
 	t := table.New().
