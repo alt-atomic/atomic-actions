@@ -62,24 +62,24 @@ func (m UserCreation) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "ctrl+c", "q":
 			return m, tea.Quit
 		case "tab", "down":
-			m.focusedField = (m.focusedField + 1) % 5 // Переключение между всеми полями
+			m.focusedField = (m.focusedField + 1) % 5
 			if m.focusedField < 3 {
-				m.cursor = 0 // Сбрасываем курсор только для инпутов
+				m.cursor = 0
 			}
 		case "shift+tab", "up":
-			m.focusedField = (m.focusedField + 4) % 5 // Переключение между всеми полями
+			m.focusedField = (m.focusedField + 4) % 5
 			if m.focusedField < 3 {
-				m.cursor = 0 // Сбрасываем курсор только для инпутов
+				m.cursor = 0
 			}
 		case "left":
 			if m.focusedField < 3 && m.cursor > 0 {
-				m.cursor-- // Перемещение курсора влево в инпутах
+				m.cursor--
 			}
 		case "right":
 			if m.focusedField < 3 {
 				fieldLength := len(m.getFieldValue())
 				if m.cursor < fieldLength {
-					m.cursor++ // Перемещение курсора вправо в инпутах
+					m.cursor++
 				}
 			}
 		case "enter":
@@ -201,13 +201,6 @@ func (m UserCreation) View() string {
 
 	// Создание стилей для кнопок
 	buttonStyle := lipgloss.NewStyle().
-		Foreground(lipgloss.Color("15")). // Белый текст
-		Background(lipgloss.Color("33")). // Синий фон
-		Padding(0, 2).
-		Margin(1, 0).
-		Align(lipgloss.Center)
-
-	buttonCancelStyle := lipgloss.NewStyle().
 		Foreground(lipgloss.Color("15")).  // Белый текст
 		Background(lipgloss.Color("238")). // Серый фон
 		Padding(0, 2).
@@ -221,9 +214,8 @@ func (m UserCreation) View() string {
 		Margin(1, 0).
 		Align(lipgloss.Center)
 
-	// Устанавливаем стиль для каждой кнопки ровно один раз
 	startButton := buttonStyle.Render("Начать установку")
-	cancelButton := buttonCancelStyle.Render("Отмена")
+	cancelButton := buttonStyle.Render("Отмена")
 
 	// Изменяем стиль только для выбранной кнопки
 	if m.focusedField == 3 {
@@ -233,13 +225,11 @@ func (m UserCreation) View() string {
 		cancelButton = selectedButtonStyle.Render("Отмена")
 	}
 
-	// Сообщения в футере
 	footer := "\n" + m.footerMessage
 	if m.errorMessage != "" {
 		footer += "\n" + theme.ErrorStyle.Render(m.errorMessage)
 	}
 
-	// Собираем итоговый вид
 	// Сборка итогового представления
 	return strings.Join([]string{
 		header,

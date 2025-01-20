@@ -34,6 +34,7 @@ func RunDiskStep() string {
 
 func InitialDisk() Disk {
 	disks := getAvailableDisks()
+
 	if len(disks) == 0 {
 		fmt.Println(theme.ErrorStyle.Render("Для установки требуется дисковое устройство размером ≥ 50 ГБ!"))
 		os.Exit(1)
@@ -61,6 +62,10 @@ func getAvailableDisks() []string {
 
 	for _, line := range lines {
 		fields := strings.Fields(line)
+		if len(fields) < 3 {
+			continue
+		}
+
 		if len(fields) >= 3 && fields[2] == "disk" {
 			// Исключаем zram и loop
 			if strings.HasPrefix(fields[0], "zram") || strings.HasPrefix(fields[0], "loop") {
@@ -92,6 +97,10 @@ func parseSize(sizeStr string) (float64, error) {
 	if len(sizeStr) < 2 {
 		return 0, fmt.Errorf("неизвестный формат размера: %s", sizeStr)
 	}
+
+	// Заменяем запятую на точку
+	sizeStr = strings.ReplaceAll(sizeStr, ",", ".")
+
 	unit := sizeStr[len(sizeStr)-1]    // последняя буква: G / M / T / и т.д.
 	valStr := sizeStr[:len(sizeStr)-1] // всё, кроме последней буквы
 
@@ -102,16 +111,12 @@ func parseSize(sizeStr string) (float64, error) {
 
 	switch unit {
 	case 'G':
-		// Обычные гигабайты
 		return value, nil
 	case 'M':
-		// Мегабайты -> делим на 1024, получаем ГБ
 		return value / 1024.0, nil
 	case 'T':
-		// Терабайты -> умножаем на 1024, получаем ГБ
 		return value * 1024.0, nil
 	default:
-		// Если попался какой-то другой (например, KiB, GiB — но lsblk обычно пишет G/M/T)
 		return 0, fmt.Errorf("неизвестная единица измерения: %c", unit)
 	}
 }

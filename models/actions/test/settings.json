@@ -1,0 +1,5 @@
+{
+  "commands": ["update", "install"],
+  "description": "Команда для проверки работы.",
+  "sudo": true
+}

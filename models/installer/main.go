@@ -10,7 +10,7 @@ import (
 )
 
 // Run запускает процесс установки
-func Run() {
+func RunInstaller() {
 	//// Добавляем нового пользователя и задаём пароль root в chroot окружении
 	//chrootPath, err := findOstreeDeployPath("/mnt/vdb3/@")
 	//if err != nil {
