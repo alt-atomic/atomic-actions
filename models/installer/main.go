@@ -6,6 +6,7 @@ import (
 	"log"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 	"syscall"
 )
@@ -492,10 +493,26 @@ func installToFilesystem(image string, disk string, typeBoot string, rootFileSys
 			return fmt.Errorf("ошибка копирования /home в @home: %v", err)
 		}
 
-		// Очищаем содержимое /var, но оставляем папку
+		// Очищаем содержимое /var внутри ostree
 		if err := clearDirectory(fmt.Sprintf("%s/var", ostreeDeployPath)); err != nil {
 			return fmt.Errorf("ошибка очистки содержимого /var: %v", err)
 		}
+
+		// путь к папке ostree/deploy/default/var
+		varToDeletePath := fmt.Sprintf("%s/var", filepath.Join(ostreeDeployPath, "../../"))
+		if err := clearDirectory(varToDeletePath); err != nil {
+			return fmt.Errorf("ошибка очистки содержимого /ostree/deploy/default/var: %v", err)
+		}
+
+		selabeledFilePath := fmt.Sprintf("%s/.ostree-selabeled", varToDeletePath)
+		log.Printf("Создание файла %s\n", selabeledFilePath)
+
+		file, err := os.Create(selabeledFilePath)
+		if err != nil {
+			return fmt.Errorf("ошибка создания файла .ostree-selabeled: %v", err)
+		}
+		defer file.Close()
+		log.Println("Файл .ostree-selabeled успешно создан.")
 	} else {
 		if err := mountDisk(partitions["root"].Path, mountPoint, "rw"); err != nil {
 			return fmt.Errorf("ошибка повторного монтирования root раздела: %v", err)
@@ -508,6 +525,24 @@ func installToFilesystem(image string, disk string, typeBoot string, rootFileSys
 
 		if err := configureUserAndRoot(ostreeDeployPath, user.Username, user.Password); err != nil {
 			return fmt.Errorf("ошибка настройки пользователя и root: %v", err)
+		}
+
+		// Создаём папку пользователя внутри /ostree/deploy/default/var
+		varDeployPath := filepath.Join(ostreeDeployPath, "../../var/home")
+		userHomePath := filepath.Join(varDeployPath, user.Username)
+
+		log.Printf("Создание папки пользователя %s в %s\n", user.Username, varDeployPath)
+
+		if _, err := os.Stat(userHomePath); os.IsNotExist(err) {
+			if err := os.MkdirAll(userHomePath, 0755); err != nil {
+				return fmt.Errorf("ошибка создания папки пользователя %s: %v", userHomePath, err)
+			}
+			if err := os.Chown(userHomePath, 1000, 1000); err != nil {
+				return fmt.Errorf("ошибка изменения владельца для %s: %v", userHomePath, err)
+			}
+			log.Printf("Папка пользователя %s создана и настроена (UID: 1000, GID: 1000).\n", userHomePath)
+		} else {
+			log.Printf("Папка пользователя %s уже существует, пропускаем создание.\n", userHomePath)
 		}
 
 		if err := configureTimezone(ostreeDeployPath, timezone); err != nil {
