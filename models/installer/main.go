@@ -536,13 +536,13 @@ func installToFilesystem(image string, disk string, typeBoot string, rootFileSys
 		}
 
 		// Добавлено: Копирование файлов из /etc/skel в домашний каталог пользователя
-		userHomePath := filepath.Join(ostreeDeployPath, "var/home", user.Username)
-		if err := copyWithRsync("/etc/skel/", userHomePath); err != nil {
-			return fmt.Errorf("ошибка копирования /etc/skel в домашний каталог: %v", err)
-		}
-		if err := os.Chown(userHomePath, 1000, 1000); err != nil {
-			return fmt.Errorf("ошибка изменения владельца домашнего каталога: %v", err)
-		}
+		//userHomePath := filepath.Join(ostreeDeployPath, "var/home", user.Username)
+		//if err := copyWithRsync("/etc/skel/", userHomePath); err != nil {
+		//	return fmt.Errorf("ошибка копирования /etc/skel в домашний каталог: %v", err)
+		//}
+		//if err := os.Chown(userHomePath, 1000, 1000); err != nil {
+		//	return fmt.Errorf("ошибка изменения владельца домашнего каталога: %v", err)
+		//}
 
 		varDeployPath := filepath.Join(ostreeDeployPath, "../../var/home")
 
@@ -619,6 +619,7 @@ func configureUserAndRoot(rootPath string, userName string, password string) err
 	}
 
 	varHomePath := fmt.Sprintf("%s/var/home", rootPath)
+	homeDir := fmt.Sprintf("/var/home/%s", userName)
 
 	log.Println("Проверка существования каталога /var/home...")
 	if _, err := os.Stat(varHomePath); os.IsNotExist(err) {
@@ -644,6 +645,20 @@ func configureUserAndRoot(rootPath string, userName string, password string) err
 	cmd = chrootCmd("sh", "-c", fmt.Sprintf("echo 'root:%s' | chpasswd", password))
 	if err := cmd.Run(); err != nil {
 		return fmt.Errorf("ошибка установки пароля для root: %v", err)
+	}
+
+	log.Println("Копирование файлов skel...")
+	cmd = chrootCmd(
+		"sh", "-c",
+		fmt.Sprintf("[ -d /etc/skel ] && cp -r /etc/skel/. %s/", homeDir),
+	)
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("ошибка копирования skel: %v", err)
+	}
+
+	cmd = chrootCmd("chown", "-R", fmt.Sprintf("%s:%s", userName, userName), homeDir)
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("ошибка изменения владельца: %v", err)
 	}
 
 	log.Println("Пользователь и root настроены успешно.")
