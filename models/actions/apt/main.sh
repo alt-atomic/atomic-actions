@@ -1,5 +1,14 @@
 #!/bin/bash
 
+# Проверяем установлен ли пакет через rpm
+is_package_installed() {
+    if rpm -q "$1" &>/dev/null; then
+        return 0
+    else
+        return 1
+    fi
+}
+
 # Проверка и активация наложенной файловой системы
 run-bootc-usr-overlay() {
   local run_overlay="true"
@@ -140,6 +149,8 @@ case "$command" in
 
   install)
     echo "Running apt-get install with arguments: $@"
+    apt-get update
+
     for pkg in "$@"; do
       if is_package_installed "$pkg"; then
         err "Package '$pkg' is already installed. Aborting."
