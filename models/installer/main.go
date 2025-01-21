@@ -502,22 +502,22 @@ func installToFilesystem(image string, disk string, typeBoot string, rootFileSys
 		}
 
 		// путь к папке var
-		varDeployPath := fmt.Sprintf("%s/var", filepath.Join(ostreeDeployPath, "../../"))
-
-		// Очищаем содержимое ostree/deploy/default/var
-		if err := clearDirectory(varDeployPath); err != nil {
-			return fmt.Errorf("ошибка очистки содержимого /ostree/deploy/default/var: %v", err)
-		}
-
-		selabeledFilePath := fmt.Sprintf("%s/.ostree-selabeled", varDeployPath)
-		log.Printf("Создание файла %s\n", selabeledFilePath)
-
-		file, err := os.Create(selabeledFilePath)
-		if err != nil {
-			return fmt.Errorf("ошибка создания файла .ostree-selabeled: %v", err)
-		}
-		defer file.Close()
-		log.Println("Файл .ostree-selabeled успешно создан.")
+		//varDeployPath := fmt.Sprintf("%s/var", filepath.Join(ostreeDeployPath, "../../"))
+		//
+		//// Очищаем содержимое ostree/deploy/default/var
+		//if err := clearDirectory(varDeployPath); err != nil {
+		//	return fmt.Errorf("ошибка очистки содержимого /ostree/deploy/default/var: %v", err)
+		//}
+		//
+		//selabeledFilePath := fmt.Sprintf("%s/.ostree-selabeled", varDeployPath)
+		//log.Printf("Создание файла %s\n", selabeledFilePath)
+		//
+		//file, err := os.Create(selabeledFilePath)
+		//if err != nil {
+		//	return fmt.Errorf("ошибка создания файла .ostree-selabeled: %v", err)
+		//}
+		//defer file.Close()
+		//log.Println("Файл .ostree-selabeled успешно создан.")
 	} else {
 		if err := mountDisk(partitions["root"].Path, mountPoint, "rw"); err != nil {
 			return fmt.Errorf("ошибка повторного монтирования root раздела: %v", err)
@@ -827,7 +827,7 @@ func unmountDisk(mountPoint string) {
 	log.Printf("Размонтирование %s...\n", mountPoint)
 	cmd := exec.Command("umount", mountPoint)
 	if err := cmd.Run(); err != nil {
-		log.Printf("Ошибка размонтирования %s: %v\n", mountPoint, err)
+		log.Printf("Ошибка размонтирования %s: %v\n", mountPoint, err.Error())
 	}
 }
 
