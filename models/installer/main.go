@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"strings"
 	"syscall"
+	"time"
 )
 
 const conrainer_dir = "/var/lib/containers"
@@ -565,10 +566,10 @@ func installToFilesystem(image string, disk string, typeBoot string, rootFileSys
 	unmountDisk(efiMountPoint)
 	unmountDisk(mountPointBoot)
 	if rootFileSystem == "btrfs" {
-		unmountDisk(mountBtrfsVar)
 		unmountDisk(mountBtrfsHome)
+		unmountDisk(mountBtrfsVar)
 	}
-	os.Exit(0)
+	time.Sleep(5 * time.Second)
 	unmountDisk(mountPoint)
 	return nil
 }
