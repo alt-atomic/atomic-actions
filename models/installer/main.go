@@ -568,6 +568,7 @@ func installToFilesystem(image string, disk string, typeBoot string, rootFileSys
 		unmountDisk(mountBtrfsVar)
 		unmountDisk(mountBtrfsHome)
 	}
+	os.Exit(0)
 	unmountDisk(mountPoint)
 	return nil
 }
