@@ -11,7 +11,7 @@ import (
 	"syscall"
 )
 
-const conrainer_dir = "/var/lib/containers1"
+const conrainer_dir = "/var/lib/containers"
 
 var timezone = "Europe/Moscow"
 
@@ -439,7 +439,7 @@ func installToFilesystem(image string, disk string, typeBoot string, rootFileSys
 
 	cmd := exec.Command("sudo", "podman", "run", "--rm", "--privileged", "--pid=host",
 		"--security-opt", "label=type:unconfined_t",
-		"-v", "/var/lib/containers:/var/lib/containers",
+		"-v", conrainer_dir+":/var/lib/containers",
 		"-v", "/dev:/dev",
 		"-v", "/mnt/target:/mnt/target",
 		"--security-opt", "label=disable",
