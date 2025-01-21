@@ -535,15 +535,6 @@ func installToFilesystem(image string, disk string, typeBoot string, rootFileSys
 			return fmt.Errorf("ошибка настройки пользователя и root: %v", err)
 		}
 
-		// Добавлено: Копирование файлов из /etc/skel в домашний каталог пользователя
-		//userHomePath := filepath.Join(ostreeDeployPath, "var/home", user.Username)
-		//if err := copyWithRsync("/etc/skel/", userHomePath); err != nil {
-		//	return fmt.Errorf("ошибка копирования /etc/skel в домашний каталог: %v", err)
-		//}
-		//if err := os.Chown(userHomePath, 1000, 1000); err != nil {
-		//	return fmt.Errorf("ошибка изменения владельца домашнего каталога: %v", err)
-		//}
-
 		varDeployPath := filepath.Join(ostreeDeployPath, "../../var/home")
 
 		// Копируем содержимое /home из коммита внутрь varDeployPath
