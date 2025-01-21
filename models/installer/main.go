@@ -11,6 +11,8 @@ import (
 	"syscall"
 )
 
+const conrainer_dir = "/var/lib/containers1"
+
 var timezone = "Europe/Moscow"
 
 func RunInstaller() {
@@ -97,7 +99,7 @@ func cleanupTemporaryPartition(partitions map[string]PartitionInfo, diskResult s
 
 	// Размонтируем временный раздел
 	log.Printf("Размонтирование временного раздела %s...\n", partitions["temp"].Path)
-	if err := unmount("/var/lib/containers"); err != nil {
+	if err := unmount(conrainer_dir); err != nil {
 		return fmt.Errorf("ошибка размонтирования временного раздела: %v", err)
 	}
 
@@ -235,7 +237,7 @@ func unmount(path string) error {
 
 // prepareDisk выполняет подготовку диска
 func prepareDisk(disk string, rootFileSystem string, typeBoot string) error {
-	paths := []string{"/mnt/target/boot/efi", "/mnt/target/boot", "/var/lib/containers", "/mnt/target"}
+	paths := []string{"/mnt/target/boot/efi", "/mnt/target/boot", conrainer_dir, "/mnt/target"}
 
 	for _, path := range paths {
 		_ = unmount(path)
@@ -341,8 +343,8 @@ func prepareDisk(disk string, rootFileSystem string, typeBoot string) error {
 
 	// Создание временного раздела
 	tempCommands := [][]string{
-		{"mkdir", "-p", "/var/lib/containers"},
-		{"mount", partitions["temp"].Path, "/var/lib/containers"},
+		{"mkdir", "-p", conrainer_dir},
+		{"mount", partitions["temp"].Path, conrainer_dir},
 	}
 
 	for _, args := range tempCommands {
@@ -498,13 +500,15 @@ func installToFilesystem(image string, disk string, typeBoot string, rootFileSys
 			return fmt.Errorf("ошибка очистки содержимого /var: %v", err)
 		}
 
-		// путь к папке ostree/deploy/default/var
-		varToDeletePath := fmt.Sprintf("%s/var", filepath.Join(ostreeDeployPath, "../../"))
-		if err := clearDirectory(varToDeletePath); err != nil {
+		// путь к папке var
+		varDeployPath := fmt.Sprintf("%s/var", filepath.Join(ostreeDeployPath, "../../"))
+
+		// Очищаем содержимое ostree/deploy/default/var
+		if err := clearDirectory(varDeployPath); err != nil {
 			return fmt.Errorf("ошибка очистки содержимого /ostree/deploy/default/var: %v", err)
 		}
 
-		selabeledFilePath := fmt.Sprintf("%s/.ostree-selabeled", varToDeletePath)
+		selabeledFilePath := fmt.Sprintf("%s/.ostree-selabeled", varDeployPath)
 		log.Printf("Создание файла %s\n", selabeledFilePath)
 
 		file, err := os.Create(selabeledFilePath)
@@ -535,26 +539,8 @@ func installToFilesystem(image string, disk string, typeBoot string, rootFileSys
 		}
 
 		// Очищаем содержимое /var внутри ostree
-		if err := clearDirectory(fmt.Sprintf("%s/var", ostreeDeployPath)); err != nil {
-			return fmt.Errorf("ошибка очистки содержимого /var: %v", err)
-		}
-
-		// Создаём папку пользователя внутри /ostree/deploy/default/var
-		//varDeployPath := filepath.Join(ostreeDeployPath, "../../var/home")
-		//userHomePath := filepath.Join(varDeployPath, user.Username)
-		//
-		//log.Printf("Создание папки пользователя %s в %s\n", user.Username, varDeployPath)
-		//
-		//if _, err := os.Stat(userHomePath); os.IsNotExist(err) {
-		//	if err := os.MkdirAll(userHomePath, 0755); err != nil {
-		//		return fmt.Errorf("ошибка создания папки пользователя %s: %v", userHomePath, err)
-		//	}
-		//	if err := os.Chown(userHomePath, 1000, 1000); err != nil {
-		//		return fmt.Errorf("ошибка изменения владельца для %s: %v", userHomePath, err)
-		//	}
-		//	log.Printf("Папка пользователя %s создана и настроена (UID: 1000, GID: 1000).\n", userHomePath)
-		//} else {
-		//	log.Printf("Папка пользователя %s уже существует, пропускаем создание.\n", userHomePath)
+		//if err := clearDirectory(fmt.Sprintf("%s/var", ostreeDeployPath)); err != nil {
+		//	return fmt.Errorf("ошибка очистки содержимого /var: %v", err)
 		//}
 
 		if err := configureTimezone(ostreeDeployPath, timezone); err != nil {
@@ -578,8 +564,10 @@ func installToFilesystem(image string, disk string, typeBoot string, rootFileSys
 
 	unmountDisk(efiMountPoint)
 	unmountDisk(mountPointBoot)
-	unmountDisk(mountBtrfsVar)
-	unmountDisk(mountBtrfsHome)
+	if rootFileSystem == "btrfs" {
+		unmountDisk(mountBtrfsVar)
+		unmountDisk(mountBtrfsHome)
+	}
 	unmountDisk(mountPoint)
 	return nil
 }
