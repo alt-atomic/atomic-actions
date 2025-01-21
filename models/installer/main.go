@@ -497,14 +497,14 @@ func installToFilesystem(image string, disk string, typeBoot string, rootFileSys
 		}
 
 		// Очищаем содержимое /var внутри ostree
-		if err := clearDirectory(fmt.Sprintf("%s/var", ostreeDeployPath)); err != nil {
-			return fmt.Errorf("ошибка очистки содержимого /var: %v", err)
-		}
+		//if err := clearDirectory(fmt.Sprintf("%s/var", ostreeDeployPath)); err != nil {
+		//	return fmt.Errorf("ошибка очистки содержимого /var: %v", err)
+		//}
 
 		// путь к папке var
 		//varDeployPath := fmt.Sprintf("%s/var", filepath.Join(ostreeDeployPath, "../../"))
-		//
-		//// Очищаем содержимое ostree/deploy/default/var
+
+		// Очищаем содержимое ostree/deploy/default/var
 		//if err := clearDirectory(varDeployPath); err != nil {
 		//	return fmt.Errorf("ошибка очистки содержимого /ostree/deploy/default/var: %v", err)
 		//}
@@ -516,8 +516,11 @@ func installToFilesystem(image string, disk string, typeBoot string, rootFileSys
 		//if err != nil {
 		//	return fmt.Errorf("ошибка создания файла .ostree-selabeled: %v", err)
 		//}
-		//defer file.Close()
-		//log.Println("Файл .ostree-selabeled успешно создан.")
+		//
+		//errFile := file.Close()
+		//if errFile != nil {
+		//	return fmt.Errorf("ошибка очистки содержимого /ostree/deploy/default/var: %v", errFile)
+		//}
 	} else {
 		if err := mountDisk(partitions["root"].Path, mountPoint, "rw"); err != nil {
 			return fmt.Errorf("ошибка повторного монтирования root раздела: %v", err)
