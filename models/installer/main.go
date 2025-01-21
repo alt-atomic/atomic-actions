@@ -496,31 +496,31 @@ func installToFilesystem(image string, disk string, typeBoot string, rootFileSys
 			return fmt.Errorf("ошибка копирования /home в @home: %v", err)
 		}
 
-		// Очищаем содержимое /var внутри ostree
-		//if err := clearDirectory(fmt.Sprintf("%s/var", ostreeDeployPath)); err != nil {
-		//	return fmt.Errorf("ошибка очистки содержимого /var: %v", err)
-		//}
+		//Очищаем содержимое /var внутри ostree
+		if err := clearDirectory(fmt.Sprintf("%s/var", ostreeDeployPath)); err != nil {
+			return fmt.Errorf("ошибка очистки содержимого /var: %v", err)
+		}
 
-		// путь к папке var
-		//varDeployPath := fmt.Sprintf("%s/var", filepath.Join(ostreeDeployPath, "../../"))
+		//путь к папке var
+		varDeployPath := fmt.Sprintf("%s/var", filepath.Join(ostreeDeployPath, "../../"))
 
-		// Очищаем содержимое ostree/deploy/default/var
-		//if err := clearDirectory(varDeployPath); err != nil {
-		//	return fmt.Errorf("ошибка очистки содержимого /ostree/deploy/default/var: %v", err)
-		//}
-		//
-		//selabeledFilePath := fmt.Sprintf("%s/.ostree-selabeled", varDeployPath)
-		//log.Printf("Создание файла %s\n", selabeledFilePath)
-		//
-		//file, err := os.Create(selabeledFilePath)
-		//if err != nil {
-		//	return fmt.Errorf("ошибка создания файла .ostree-selabeled: %v", err)
-		//}
-		//
-		//errFile := file.Close()
-		//if errFile != nil {
-		//	return fmt.Errorf("ошибка очистки содержимого /ostree/deploy/default/var: %v", errFile)
-		//}
+		//Очищаем содержимое ostree/deploy/default/var
+		if err := clearDirectory(varDeployPath); err != nil {
+			return fmt.Errorf("ошибка очистки содержимого /ostree/deploy/default/var: %v", err)
+		}
+
+		selabeledFilePath := fmt.Sprintf("%s/.ostree-selabeled", varDeployPath)
+		log.Printf("Создание файла %s\n", selabeledFilePath)
+
+		file, err := os.Create(selabeledFilePath)
+		if err != nil {
+			return fmt.Errorf("ошибка создания файла .ostree-selabeled: %v", err)
+		}
+
+		errFile := file.Close()
+		if errFile != nil {
+			return fmt.Errorf("ошибка очистки содержимого /ostree/deploy/default/var: %v", errFile)
+		}
 	} else {
 		if err := mountDisk(partitions["root"].Path, mountPoint, "rw"); err != nil {
 			return fmt.Errorf("ошибка повторного монтирования root раздела: %v", err)
@@ -535,6 +535,15 @@ func installToFilesystem(image string, disk string, typeBoot string, rootFileSys
 			return fmt.Errorf("ошибка настройки пользователя и root: %v", err)
 		}
 
+		// Добавлено: Копирование файлов из /etc/skel в домашний каталог пользователя
+		userHomePath := filepath.Join(ostreeDeployPath, "var/home", user.Username)
+		if err := copyWithRsync("/etc/skel/", userHomePath); err != nil {
+			return fmt.Errorf("ошибка копирования /etc/skel в домашний каталог: %v", err)
+		}
+		if err := os.Chown(userHomePath, 1000, 1000); err != nil {
+			return fmt.Errorf("ошибка изменения владельца домашнего каталога: %v", err)
+		}
+
 		varDeployPath := filepath.Join(ostreeDeployPath, "../../var/home")
 
 		// Копируем содержимое /home из коммита внутрь varDeployPath
@@ -543,9 +552,9 @@ func installToFilesystem(image string, disk string, typeBoot string, rootFileSys
 		}
 
 		// Очищаем содержимое /var внутри ostree
-		//if err := clearDirectory(fmt.Sprintf("%s/var", ostreeDeployPath)); err != nil {
-		//	return fmt.Errorf("ошибка очистки содержимого /var: %v", err)
-		//}
+		if err := clearDirectory(fmt.Sprintf("%s/var", ostreeDeployPath)); err != nil {
+			return fmt.Errorf("ошибка очистки содержимого /var: %v", err)
+		}
 
 		if err := configureTimezone(ostreeDeployPath, timezone); err != nil {
 			return fmt.Errorf("ошибка установки timezone: %v", err)
