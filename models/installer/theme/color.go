@@ -12,6 +12,7 @@ var (
 	errorColor    = lipgloss.Color("160") // Красный (Red)
 	loadingColor  = lipgloss.Color("33")  // Голубой (Cyan)
 	warningColor  = lipgloss.Color("214") // Оранжевый (Orange)
+	infoColor     = lipgloss.Color("240") // Серый (Gray)
 
 	WarningsStyle    = lipgloss.NewStyle().Bold(true).Foreground(warningColor)
 	CursorStyle      = lipgloss.NewStyle().Foreground(cursorColor)

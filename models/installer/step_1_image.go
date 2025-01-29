@@ -18,20 +18,25 @@ type ImagePodman struct {
 	Names []string `json:"Names"`
 }
 
+type Choice struct {
+	Name        string
+	Description string
+}
+
 type Image struct {
-	Result        string   // Результат выбора
-	choices       []string // Список изображений
-	cursor        int      // Текущая позиция курсора
-	selected      int      // Выбранный элемент
-	confirmActive bool     // Меню подтверждения
-	confirmCursor int      // Курсор в меню подтверждения
-	inputActive   bool     // Поле ввода активно
-	menuCursor    int      // Курсор в меню "ОК" и "Отмена"
-	inputText     string   // Текущий текст ввода
-	textCursor    int      // Курсор в тексте инпута
-	footerMessage string   // Сообщение для footer
-	loading       bool     // Прелоадер
-	inputFocused  bool     // Фокус находится на инпуте
+	Result        string
+	choices       []Choice
+	cursor        int
+	selected      int
+	confirmActive bool
+	confirmCursor int
+	inputActive   bool
+	menuCursor    int
+	inputText     string
+	textCursor    int
+	footerMessage string
+	loading       bool
+	inputFocused  bool
 }
 
 func RunImageStep() string {
@@ -53,11 +58,10 @@ func InitialImage() Image {
 	if err != nil {
 		log.Printf(err.Error())
 		footerMessage = theme.ErrorStyle.Render(err.Error())
-		images = []string{}
+		images = []Choice{}
 	}
 
-	log.Printf(strings.Join(images, "\n"))
-	images = append(images, "Выбрать свой образ")
+	images = append(images, Choice{Name: "Выбрать свой образ"})
 	return Image{
 		choices:       images,
 		selected:      -1,
@@ -70,42 +74,42 @@ func InitialImage() Image {
 	}
 }
 
-// Получение доступных изображений через podman
-func getAvailableImages() ([]string, error) {
-	// Выполнить команду podman images --format json
+func getAvailableImages() ([]Choice, error) {
 	out, err := exec.Command("sudo", "podman", "images", "--format", "json").Output()
 	if err != nil {
 		return addDefaultImage(nil), nil
 	}
 
-	// Парсинг JSON-ответа
 	var imagesData []ImagePodman
 	if err := json.Unmarshal(out, &imagesData); err != nil {
 		log.Printf("Ошибка парсинга JSON: %v", err)
 		return addDefaultImage(nil), nil
 	}
 
-	// Фильтровать образы с непустыми Names
-	var images []string
+	var images []Choice
 	for _, image := range imagesData {
-		if len(image.Names) > 0 {
-			images = append(images, image.Names...)
+		for _, name := range image.Names {
+			images = append(images, Choice{Name: name, Description: ""})
 		}
 	}
 
 	return addDefaultImage(images), nil
 }
 
-// Добавить стандартный образ, если список пуст
-func addDefaultImage(images []string) []string {
-	const defaultImage = "ghcr.io/skywar-design/alt-atomic:source"
-	if len(images) == 0 {
-		images = append(images, defaultImage)
-	}
+func addDefaultImage(images []Choice) []Choice {
+	images = append(images,
+		Choice{
+			Name:        "ghcr.io/alt-gnome/alt-atomic:latest",
+			Description: "Базовый образ",
+		},
+		Choice{
+			Name:        "ghcr.io/alt-gnome/alt-atomic:latest-nv",
+			Description: "Для NVIDIA-видеокарт, проприетарный драйвер",
+		},
+	)
 	return images
 }
 
-// Проверка изображения с помощью skopeo
 func validateImage(image string) (string, error) {
 	cmd := exec.Command("skopeo", "inspect", "docker://"+image)
 	var stderr bytes.Buffer
@@ -138,7 +142,7 @@ func (m Image) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.loading = false
 			image := strings.TrimPrefix(msg.String(), "success:")
 			m.footerMessage = theme.SuccessStyle.Render("Валидное изображение: " + image)
-			m.choices = append(m.choices[:len(m.choices)-1], image, "Загрузить свое изображение")
+			m.choices = append(m.choices[:len(m.choices)-1], Choice{Name: image}, Choice{Name: "Выбрать свой образ"})
 			m.inputActive = false
 			m.inputText = ""
 			m.textCursor = 0
@@ -172,7 +176,7 @@ func (m Image) updateInputOrMenu(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 				m.textCursor--
 			}
 		case "enter", "down":
-			m.menuCursor = 1 // Переключаемся на меню "ОК/Отмена"
+			m.menuCursor = 1
 			m.inputFocused = false
 		case "esc":
 			m.inputActive = false
@@ -202,10 +206,8 @@ func (m Image) updateInputOrMenu(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			}
 		case "enter", " ":
 			if m.menuCursor == 1 && len(m.inputText) > 0 {
-				// Переходим в режим загрузки
 				m.loading = true
 				return m, tea.Batch(func() tea.Msg {
-					// Проверка изображения выполняется асинхронно
 					output, err := validateImage(m.inputText)
 					if err != nil {
 						return tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("error:" + output)}
@@ -234,7 +236,7 @@ func (m Image) updateConfirmation(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		}
 	case "enter", " ":
 		if m.confirmCursor == 0 {
-			m.Result = m.choices[m.selected]
+			m.Result = m.choices[m.selected].Name
 			return m, tea.Quit
 		} else if m.confirmCursor == 1 {
 			m.selected = -1
@@ -257,7 +259,7 @@ func (m Image) updateChoices(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.cursor++
 		}
 	case "enter", " ":
-		if m.cursor == len(m.choices)-1 {
+		if m.choices[m.cursor].Name == "Выбрать свой образ" {
 			m.inputActive = true
 			m.menuCursor = 0
 		} else {
@@ -282,7 +284,12 @@ func (m Image) View() string {
 		if m.selected == i {
 			checked = theme.SelectedStyle.Render("x")
 		}
-		body += fmt.Sprintf("%s [%s] %s\n", cursor, checked, choice)
+
+		desc := ""
+		if choice.Description != "" {
+			desc = theme.LoadingStyle.Render(" - " + choice.Description)
+		}
+		body += fmt.Sprintf("%s [%s] %s%s\n", cursor, checked, choice.Name, desc)
 	}
 
 	if m.inputActive {
@@ -309,7 +316,8 @@ func (m Image) View() string {
 	}
 
 	if m.Result == "" && m.selected != -1 {
-		body += "\nВы уверены, что хотите выбрать изображение " + theme.SelectedStyle.Render(m.choices[m.selected]) + "?\n"
+		selectedName := m.choices[m.selected].Name
+		body += "\nВы уверены, что хотите выбрать изображение " + theme.SelectedStyle.Render(selectedName) + "?\n"
 		confirmOptions := []string{"Да", "Отмена"}
 		for i, option := range confirmOptions {
 			cursor := " "
