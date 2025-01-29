@@ -117,7 +117,7 @@ func validateImage(image string) (string, error) {
 		if errors.As(err, &exitErr) {
 			return stderr.String(), err
 		}
-		return "Ошибка выполнения команды skopeo", err
+		return "Ошибка выполнения команды: проверьте что skopeo установлен", err
 	}
 	return string(output), nil
 }
