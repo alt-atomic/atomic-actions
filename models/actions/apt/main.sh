@@ -32,7 +32,6 @@ validate_and_create_containerfile() {
   local containerfile="/var/Containerfile"
 
   if [ -f "$containerfile" ]; then
-    echo "Containerfile already exists. Skipping creation."
     return
   fi
 
@@ -78,29 +77,29 @@ err() {
 
 # Проверка обновлений базового образа
 check_and_update_base_image() {
-  local base_image="ghcr.io/skywar-design/alt-atomic:source"
-  local local_image_id
-  local remote_image_id
-
-  echo "Checking for updates to the base image: $base_image..."
-
-  # Получаем ID локального образа
-  local_image_id=$(podman images --noheading --format "{{.ID}}" "$base_image" 2>/dev/null || echo "")
-
-  if [ -z "$local_image_id" ]; then
-    err "Local base image not found: $base_image. Please pull it first."
+  local container_file="/var/Containerfile"
+  local transport=$(sudo bootc status | yq '.status.booted.image.image.transport' | xargs)
+  if [ "$transport" != "containers-storage" ]; then
+    echo "Transport is not 'containers-storage'. Running bootc upgrade..."
+    sudo bootc upgrade
+    return
   fi
 
-  # Получаем ID удалённого образа
-  echo "Pulling the latest version of the base image..."
-  remote_image_id=$(podman pull "$base_image")
+  if [ ! -f "$container_file" ]; then
+    err "Error: File $container_file does not exist."
+  fi
 
-  if [ "$local_image_id" != "$remote_image_id" ]; then
-    echo "Base image has been updated. New image ID: $remote_image_id"
-    return 0 # Указывает, что обновление есть
+  base_image=$(grep '^FROM' /var/Containerfile | sed 's/^FROM //' | xargs)
+  remote_digest=$(skopeo inspect docker://"$base_image" --format '{{.Digest}}')
+  local_digests=$(podman inspect "$base_image" --format '{{join .RepoDigests "\n"}}' 2>/dev/null)
+
+  if [[ -z "$local_digests" ]]; then
+      err "Error, not found $base_image"
+  elif echo "$local_digests" | grep -q "$remote_digest"; then
+      echo "No update needed"
   else
-    echo "Base image is up-to-date."
-    return 1 # Указывает, что обновлений нет
+      echo "Update exist $base_image"
+      rebuild_and_switch
   fi
 }
 
@@ -138,13 +137,9 @@ command="${1:-}"
 shift || true
 
 case "$command" in
-  update)
+  upgrade)
     echo "Running system update for the container image..."
-    if check_and_update_base_image; then
-      rebuild_and_switch
-    else
-      echo "No updates found for the base image. Nothing to do."
-    fi
+    check_and_update_base_image
     ;;
 
   install)
