@@ -2,7 +2,9 @@ package installer
 
 import (
 	"atomic-actions/models/installer/theme"
+	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log"
 	"os"
@@ -106,9 +108,16 @@ func addDefaultImage(images []string) []string {
 // Проверка изображения с помощью skopeo
 func validateImage(image string) (string, error) {
 	cmd := exec.Command("skopeo", "inspect", "docker://"+image)
+	var stderr bytes.Buffer
+	cmd.Stderr = &stderr
+
 	output, err := cmd.Output()
 	if err != nil {
-		return string(err.(*exec.ExitError).Stderr), err
+		var exitErr *exec.ExitError
+		if errors.As(err, &exitErr) {
+			return stderr.String(), err
+		}
+		return "Ошибка выполнения команды skopeo", err
 	}
 	return string(output), nil
 }
