@@ -89,18 +89,19 @@ check_and_update_base_image() {
     err "Error: File $container_file does not exist."
   fi
 
-  base_image=$(grep '^FROM' /var/Containerfile | sed 's/^FROM //' | xargs)
-  remote_digest=$(skopeo inspect docker://"$base_image" --format '{{.Digest}}')
-  local_digests=$(podman inspect "$base_image" --format '{{join .RepoDigests "\n"}}' 2>/dev/null)
-
-  if [[ -z "$local_digests" ]]; then
-      err "Error, not found $base_image"
-  elif echo "$local_digests" | grep -q "$remote_digest"; then
-      echo "No update needed"
-  else
-      echo "Update exist $base_image"
-      rebuild_and_switch
-  fi
+  rebuild_and_switch
+#  base_image=$(grep '^FROM' /var/Containerfile | sed 's/^FROM //' | xargs)
+#  remote_digest=$(skopeo inspect docker://"$base_image" --format '{{.Digest}}')
+#  local_digests=$(podman inspect "$base_image" --format '{{join .RepoDigests "\n"}}' 2>/dev/null)
+#
+#  if [[ -z "$local_digests" ]]; then
+#      err "Error, not found $base_image"
+#  elif echo "$local_digests" | grep -q "$remote_digest"; then
+#      echo "No update needed"
+#  else
+#      echo "Update exist $base_image"
+#      rebuild_and_switch
+#  fi
 }
 
 # Перестройка и переключение системы на новый образ
