@@ -48,6 +48,7 @@ validate_and_create_containerfile() {
     return
   fi
 
+
   echo "Creating default Containerfile..."
   cat <<EOF > "$containerfile"
 FROM $staged_image
