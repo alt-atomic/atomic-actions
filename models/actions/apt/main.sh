@@ -108,7 +108,7 @@ check_and_update_base_image() {
 # Перестройка и переключение системы на новый образ
 rebuild_and_switch() {
   echo "Rebuilding the system image..."
-  podman build --pull --squash -t os /var || err "Failed to rebuild the image."
+  podman build --pull=always --squash -t os /var || err "Failed to rebuild the image."
 
   echo "Switching to the updated image..."
   bootc-switch
