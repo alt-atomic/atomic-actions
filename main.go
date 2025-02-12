@@ -15,6 +15,7 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+	"syscall"
 )
 
 const (
@@ -225,7 +226,7 @@ func parseSettings(settingsPath string) (*ActionSettings, error) {
 	return &settings, nil
 }
 
-func generateActionHandler(action, command string, sudo bool) func(args []string) {
+func generateActionHandler(action, command string, useSudo bool) func(args []string) {
 	return func(args []string) {
 		scriptPaths := []string{
 			filepath.Join(systemActionsPath, action, "main.sh"),
@@ -247,8 +248,11 @@ func generateActionHandler(action, command string, sudo bool) func(args []string
 
 		// Формируем команду для запуска
 		cmdArgs := append([]string{scriptPath, command}, args...)
-		if sudo {
-			cmdArgs = append([]string{"sudo"}, cmdArgs...)
+		if useSudo {
+			if syscall.Geteuid() != 0 {
+				log.Println("Команда должна быть запущена с правами суперпользователя!")
+				os.Exit(1)
+			}
 		}
 
 		fmt.Printf("Выполняется: %s\n", strings.Join(cmdArgs, " "))

@@ -438,7 +438,7 @@ func installToFilesystem(image string, disk string, typeBoot string, rootFileSys
 		)
 	}
 
-	cmd := exec.Command("sudo", "podman", "run", "--rm", "--privileged", "--pid=host",
+	cmd := exec.Command("podman", "run", "--rm", "--privileged", "--pid=host",
 		"--security-opt", "label=type:unconfined_t",
 		"-v", conrainer_dir+":/var/lib/containers",
 		"-v", "/dev:/dev",
@@ -603,7 +603,7 @@ func configureTimezone(rootPath string, timezone string) error {
 
 func configureUserAndRoot(rootPath string, userName string, password string) error {
 	chrootCmd := func(args ...string) *exec.Cmd {
-		cmd := exec.Command("sudo", append([]string{"chroot", rootPath}, args...)...)
+		cmd := exec.Command("chroot", append([]string{rootPath}, args...)...)
 		cmd.Stdout = os.Stdout
 		cmd.Stderr = os.Stderr
 		return cmd
