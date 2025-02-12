@@ -12,7 +12,7 @@ import (
 	"time"
 )
 
-const conrainer_dir = "/var/lib/containers"
+const container_dir = "/var/lib/containers"
 
 var timezone = "Europe/Moscow"
 
@@ -100,7 +100,7 @@ func cleanupTemporaryPartition(partitions map[string]PartitionInfo, diskResult s
 
 	// Размонтируем временный раздел
 	log.Printf("Размонтирование временного раздела %s...\n", partitions["temp"].Path)
-	if err := unmount(conrainer_dir); err != nil {
+	if err := unmount(container_dir); err != nil {
 		return fmt.Errorf("ошибка размонтирования временного раздела: %v", err)
 	}
 
@@ -239,7 +239,7 @@ func unmount(path string) error {
 
 // prepareDisk выполняет подготовку диска
 func prepareDisk(disk string, rootFileSystem string, typeBoot string) error {
-	paths := []string{"/mnt/target/boot/efi", "/mnt/target/boot", conrainer_dir, "/mnt/target"}
+	paths := []string{"/mnt/target/boot/efi", "/mnt/target/boot", container_dir, "/mnt/target"}
 
 	for _, path := range paths {
 		_ = unmount(path)
@@ -345,8 +345,8 @@ func prepareDisk(disk string, rootFileSystem string, typeBoot string) error {
 
 	// Создание временного раздела
 	tempCommands := [][]string{
-		{"mkdir", "-p", conrainer_dir},
-		{"mount", partitions["temp"].Path, conrainer_dir},
+		{"mkdir", "-p", container_dir},
+		{"mount", partitions["temp"].Path, container_dir},
 	}
 
 	for _, args := range tempCommands {
@@ -441,7 +441,7 @@ func installToFilesystem(image string, disk string, typeBoot string, rootFileSys
 
 	cmd := exec.Command("podman", "run", "--rm", "--privileged", "--pid=host",
 		"--security-opt", "label=type:unconfined_t",
-		"-v", conrainer_dir+":/var/lib/containers",
+		"-v", container_dir+":/var/lib/containers",
 		"-v", "/dev:/dev",
 		"-v", "/mnt/target:/mnt/target",
 		"--security-opt", "label=disable",
