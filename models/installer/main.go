@@ -192,6 +192,7 @@ func checkCommands() error {
 		"wipefs",
 		"parted",
 		"mkfs.fat",
+		"mkfs.btrfs",
 		"mkfs.ext4",
 		"mount",
 		"umount",
