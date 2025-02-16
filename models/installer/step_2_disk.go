@@ -36,7 +36,7 @@ func InitialDisk() Disk {
 	disks := getAvailableDisks()
 
 	if len(disks) == 0 {
-		fmt.Println(theme.ErrorStyle.Render("Для установки требуется дисковое устройство размером ≥ 50 ГБ!"))
+		fmt.Println(theme.ErrorStyle.Render("Для установки требуется дисковое устройство размером ≥ 60 ГБ!"))
 		os.Exit(1)
 	}
 
@@ -48,8 +48,6 @@ func InitialDisk() Disk {
 	}
 }
 
-// ----------------------------------------------------------------------------
-// Изменяемая функция: учитываем только диски размером >= 50 ГБ
 func getAvailableDisks() []string {
 	out, err := exec.Command("lsblk", "-o", "NAME,SIZE,TYPE", "-d", "-n").Output()
 	if err != nil {
@@ -78,7 +76,6 @@ func getAvailableDisks() []string {
 				continue
 			}
 
-			// Оставляем диск, только если он ≥ 50 ГБ
 			if sizeGb >= 60 {
 				devicePath := "/dev/" + fields[0]
 				displayName := fmt.Sprintf("%s (%s)", devicePath, fields[1])
