@@ -79,7 +79,7 @@ func getAvailableDisks() []string {
 			}
 
 			// Оставляем диск, только если он ≥ 50 ГБ
-			if sizeGb >= 50 {
+			if sizeGb >= 60 {
 				devicePath := "/dev/" + fields[0]
 				displayName := fmt.Sprintf("%s (%s)", devicePath, fields[1])
 				disks = append(disks, displayName)
