@@ -65,6 +65,9 @@ func RunInstaller() {
 		return
 	}
 
+	// проверяем размер /tmp
+	checkAndRemountTmp()
+
 	if err := prepareDisk(diskResult, typeFileSystem, typeBoot); err != nil {
 		log.Fatalf("Ошибка подготовки диска: %v\n", err)
 	}
@@ -83,6 +86,32 @@ func RunInstaller() {
 	}
 
 	log.Println("Установка завершена успешно!")
+}
+
+func checkAndRemountTmp() {
+	var stat syscall.Statfs_t
+
+	if err := syscall.Statfs("/tmp", &stat); err != nil {
+		log.Printf("Ошибка чтения статистики /tmp: %v\n", err)
+		return
+	}
+
+	// Подсчитываем объём раздела в гигабайтах
+	total := float64(stat.Blocks*uint64(stat.Bsize)) / (1 << 30)
+	fmt.Printf("Текущий размер /tmp: %.2f ГБ\n", total)
+
+	// Если меньше 5 ГБ — пытаемся перемонтировать /tmp
+	if total < 5.0 {
+		cmd := exec.Command("mount", "-o", "remount,size=5G", "/tmp")
+		output, err := cmd.CombinedOutput()
+		if err != nil {
+			log.Printf("Ошибка перемонтирования /tmp: %v (вывод: %s)\n", err, string(output))
+			return
+		}
+		fmt.Println("Успешно перемонтировали /tmp, вывод команды:", string(output))
+	} else {
+		fmt.Println("Размер /tmp достаточный, перемонтирование не требуется.")
+	}
 }
 
 func checkTimeZone() {
