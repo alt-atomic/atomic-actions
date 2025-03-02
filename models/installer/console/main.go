@@ -1,4 +1,4 @@
-package installer
+package console
 
 import (
 	"atomic-actions/models/installer/utility"
