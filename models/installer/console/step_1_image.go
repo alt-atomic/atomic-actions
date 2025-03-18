@@ -100,11 +100,19 @@ func addDefaultImage(images []Choice) []Choice {
 	images = append(images,
 		Choice{
 			Name:        "ghcr.io/alt-gnome/alt-atomic:latest",
-			Description: "Базовый образ",
+			Description: "Образ GNOME. Рекомендуемый",
 		},
 		Choice{
 			Name:        "ghcr.io/alt-gnome/alt-atomic:latest-nv",
-			Description: "Для NVIDIA-видеокарт, проприетарный драйвер",
+			Description: "Образ GNOME для NVIDIA (OPEN драйвер)",
+		},
+		Choice{
+			Name:        "ghcr.io/alt-atomic/alt-kde:latest",
+			Description: "Образ KDE (только для тестирования)",
+		},
+		Choice{
+			Name:        "ghcr.io/alt-atomic/alt-kde:latest-nv",
+			Description: "Образ KDE для NVIDIA (OPEN драйвер, только для тестирования)",
 		},
 	)
 	return images

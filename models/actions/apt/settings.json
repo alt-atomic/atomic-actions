@@ -1,5 +1,0 @@
-{
-  "commands": ["upgrade", "remove", "install"],
-  "description": "Работа с пакетами из репозитория Alt linux. \nВнимание! Это переключит систему на локальный образ.",
-  "sudo": true
-}

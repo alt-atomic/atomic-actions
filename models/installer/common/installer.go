@@ -1,6 +1,7 @@
-package console
+package common
 
 import (
+	"atomic-actions/models/installer/console"
 	"atomic-actions/models/installer/utility"
 	"fmt"
 	"log"
@@ -12,7 +13,7 @@ import (
 	"time"
 )
 
-const container_dir = "/var/lib/containers"
+const containerDir = "/var/lib/containers"
 
 var timezone = "Europe/Moscow"
 
@@ -26,7 +27,7 @@ func RunInstaller() {
 	}
 
 	// Шаг 1: Выбор образа
-	imageResult := RunImageStep()
+	imageResult := console.RunImageStep()
 	if imageResult == "" {
 		log.Println("Образ не был выбран.")
 		return
@@ -34,7 +35,7 @@ func RunInstaller() {
 	log.Printf("Выбранный образ: %s\n\n", imageResult)
 
 	// Шаг 2: Выбор диска
-	diskResult := RunDiskStep()
+	diskResult := console.RunDiskStep()
 	if diskResult == "" {
 		log.Println("Диск не был выбран.")
 		return
@@ -45,21 +46,21 @@ func RunInstaller() {
 	}
 
 	// Шаг 3: Выбор файловой системы
-	typeFileSystem := RunFilesystemStep()
+	typeFileSystem := console.RunFilesystemStep()
 	if typeFileSystem == "" {
 		log.Println("Файловая система не выбрана.")
 		return
 	}
 
 	// Шаг 4: Выбор типа загрузки
-	typeBoot := RunBootModeStep()
+	typeBoot := console.RunBootModeStep()
 	if typeBoot == "" {
 		log.Println("Boot режим не выбран.")
 		return
 	}
 
 	// Шаг 5: Добавление юзера (*UserCreation модель)
-	user, errorUser := RunUserCreationStep()
+	user, errorUser := console.RunUserCreationStep()
 	if errorUser != nil {
 		log.Println(errorUser)
 		return
@@ -100,9 +101,9 @@ func checkAndRemountTmp() {
 	total := float64(stat.Blocks*uint64(stat.Bsize)) / (1 << 30)
 	fmt.Printf("Текущий размер /tmp: %.2f ГБ\n", total)
 
-	// Если меньше 5 ГБ — пытаемся перемонтировать /tmp
-	if total < 5.0 {
-		cmd := exec.Command("mount", "-o", "remount,size=5G", "/tmp")
+	// Если меньше 6 ГБ — пытаемся перемонтировать /tmp
+	if total < 6.0 {
+		cmd := exec.Command("mount", "-o", "remount,size=6G", "/tmp")
 		output, err := cmd.CombinedOutput()
 		if err != nil {
 			log.Printf("Ошибка перемонтирования /tmp: %v (вывод: %s)\n", err, string(output))
@@ -129,7 +130,7 @@ func cleanupTemporaryPartition(partitions map[string]PartitionInfo, diskResult s
 
 	// Размонтируем временный раздел
 	log.Printf("Размонтирование временного раздела %s...\n", partitions["temp"].Path)
-	if err := unmount(container_dir); err != nil {
+	if err := unmount(containerDir); err != nil {
 		return fmt.Errorf("ошибка размонтирования временного раздела: %v", err)
 	}
 
@@ -268,7 +269,7 @@ func unmount(path string) error {
 
 // prepareDisk выполняет подготовку диска
 func prepareDisk(disk string, rootFileSystem string, typeBoot string) error {
-	paths := []string{"/mnt/target/boot/efi", "/mnt/target/boot", container_dir, "/mnt/target"}
+	paths := []string{"/mnt/target/boot/efi", "/mnt/target/boot", containerDir, "/mnt/target"}
 
 	for _, path := range paths {
 		_ = unmount(path)
@@ -374,8 +375,8 @@ func prepareDisk(disk string, rootFileSystem string, typeBoot string) error {
 
 	// Создание временного раздела
 	tempCommands := [][]string{
-		{"mkdir", "-p", container_dir},
-		{"mount", partitions["temp"].Path, container_dir},
+		{"mkdir", "-p", containerDir},
+		{"mount", partitions["temp"].Path, containerDir},
 	}
 
 	for _, args := range tempCommands {
@@ -422,7 +423,7 @@ func createBtrfsSubVolumes(rootPartition string) error {
 }
 
 // installToFilesystem выполняет установку с использованием bootc
-func installToFilesystem(image string, disk string, typeBoot string, rootFileSystem string, user *UserCreation) error {
+func installToFilesystem(image string, disk string, typeBoot string, rootFileSystem string, user *console.UserCreation) error {
 	mountPoint := "/mnt/target"
 	mountBtrfsVar := "/mnt/btrfs/var"
 	mountBtrfsHome := "/mnt/btrfs/home"
@@ -470,7 +471,7 @@ func installToFilesystem(image string, disk string, typeBoot string, rootFileSys
 
 	cmd := exec.Command("podman", "run", "--rm", "--privileged", "--pid=host",
 		"--security-opt", "label=type:unconfined_t",
-		"-v", container_dir+":/var/lib/containers",
+		"-v", containerDir+":/var/lib/containers",
 		"-v", "/dev:/dev",
 		"-v", "/mnt/target:/mnt/target",
 		"--security-opt", "label=disable",
